@@ -22,7 +22,6 @@ builder.Services.AddBlazoredLocalStorage();
 builder.Services.AddScoped<IBlogService, BlogService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<AIContentService>();
-//builder.Services.AddScoped<TextReaderService>();
 
 
 
