@@ -1,30 +1,30 @@
-# Stage 1: Build the app
+#–– Stage 1: Build the Blazor WASM app
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
-WORKDIR /app
 
-# Copy csproj and restore as distinct layers
-COPY ["BlogFrontend/BlogFrontend.csproj", "./"]
-RUN dotnet restore "BlogFrontend.csproj"
+WORKDIR /src
 
+# Copy the solution and project files
+COPY BlogFrontend.sln ./
+COPY BlogFrontend/BlogFrontend.csproj BlogFrontend/
 
-# Copy everything else and build
+# Restore all NuGet packages
+RUN dotnet restore
+
+# Copy the full source tree and publish the frontend project
 COPY . ./
-RUN dotnet publish -c Release -o /app/dist
+WORKDIR /src/BlogFrontend
+RUN dotnet publish -c Release -o /app/publish --no-restore
 
-# Stage 2: Serve the app with Nginx
-FROM nginx:alpine AS final
+#–– Stage 2: Serve the published files with Nginx
+FROM nginx:alpine
+
+# Remove default static assets and copy in ours
 WORKDIR /usr/share/nginx/html
-
-# Remove default nginx static assets
 RUN rm -rf ./*
+COPY --from=build /app/publish/wwwroot .
 
-# Copy from the publish stage
-COPY --from=build /app/dist/wwwroot .
+# (Optional) If you need SPA‑style fallback routing, uncomment:
+# COPY BlogFrontend/nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copy a custom nginx config if needed (optional)
-# COPY nginx.conf /etc/nginx/nginx.conf
-
-# Expose port
 EXPOSE 80
-
 CMD ["nginx", "-g", "daemon off;"]
