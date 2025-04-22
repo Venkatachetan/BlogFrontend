@@ -1,0 +1,114 @@
+﻿@page "/register"
+@layout LoginLayout
+@using BlogFrontend.Models
+@using BlogFrontend.Services
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="d-flex justify-center align-center" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: #e91e63; width: 100vw; height: 100vh;">
+    <div class="text-center" style="max-width: 500px; width: 100%; padding: 40px 20px;">
+        <div class="mb-6">
+            <MudIcon Icon="@Icons.Material.Filled.Article" Style="color: white; font-size: 40px;" Class="mb-2" />
+            <MudText Typo="Typo.h5" Class="font-weight-bold" Style="color: white;">Blog Application</MudText>
+        </div>
+
+        <MudText Typo="Typo.h5" Class="mb-3" Style="color: white;">Register</MudText>
+
+        <div class="d-flex justify-center mb-2">
+            <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.8);">Already have an account?</MudText>
+            <MudButton Variant="Variant.Text"
+                       Color="Color.Default"
+                       OnClick="@(() => Navigation.NavigateTo("/login"))"
+                       Style="color: #3f51b5; padding: 0px 6px; min-width: 0; font-weight: 500;">
+                Login
+            </MudButton>
+        </div>
+
+        <MudForm Class="mt-4">
+            @if (!string.IsNullOrEmpty(message))
+            {
+                <MudAlert Severity="@severity" Variant="Variant.Filled" Dense="true" Class="mb-4">
+                    @message
+                </MudAlert>
+            }
+
+            <MudTextField @bind-Value="email"
+                          Label="Email"
+                          Variant="Variant.Outlined"
+                          FullWidth="true"
+                          Class="mb-3 bg-white rounded-lg" />
+
+            <MudTextField @bind-Value="name"
+                          Label="Name"
+                          Variant="Variant.Outlined"
+                          FullWidth="true"
+                          Class="mb-3 bg-white rounded-lg" />
+
+            <MudTextField @bind-Value="password"
+                          Label="Password"
+                          Variant="Variant.Outlined"
+                          InputType="InputType.Password"
+                          FullWidth="true"
+                          Class="mb-4 bg-white rounded-lg" />
+
+            <div class="d-flex justify-center mt-4">
+                <MudButton Variant="Variant.Filled"
+                           Style="background-color: #3f51b5; color: white; border-radius: 4px; width: 150px;"
+                           OnClick="Submit"
+                           Size="Size.Large"
+                           Disabled="isLoading">
+                    @if (isLoading)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                        <span>Registering...</span>
+                    }
+                    else
+                    {
+                        <span>Register</span>
+                    }
+                </MudButton>
+            </div>
+        </MudForm>
+    </div>
+</div>
+
+@code {
+    private string email = "";
+    private string name = "";
+    private string password = "";
+    private string message = "";
+    private Severity severity = Severity.Info;
+    private bool isLoading = false;
+
+    private async Task Submit()
+    {
+        try
+        {
+            isLoading = true;
+            message = "";
+
+            var response = await AuthService.Register(email, password, name);
+            if (response != null)
+            {
+                severity = Severity.Success;
+                message = response.Message;
+                await Task.Delay(2000); // Show success message briefly
+                Navigation.NavigateTo("/login");
+            }
+            else
+            {
+                severity = Severity.Error;
+                message = "Registration failed";
+            }
+        }
+        catch (Exception ex)
+        {
+            severity = Severity.Error;
+            message = $"An error occurred: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

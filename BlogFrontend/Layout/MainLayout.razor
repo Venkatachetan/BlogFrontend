@@ -1,0 +1,224 @@
+﻿@inherits LayoutComponentBase
+@using MudBlazor
+@using BlogFrontend.Services
+@using Blazored.LocalStorage
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject ILocalStorageService LocalStorage
+@inject IDialogService DialogService
+
+<style>
+    .primary {
+        background-color: #EC1C24 !important; /* RCB Red */
+    }
+    
+    .secondary {
+        background-color: #000000 !important; /* Black */
+    }
+    
+    .gold {
+        color: #D4AF37 !important; /* Gold accent */
+    }
+    
+    .text {
+        color: #FFFFFF !important; /* White text */
+    }
+    
+    .avatar {
+        background-color: #000000 !important; 
+        color: #D4AF37 !important;
+        border: 2px solid #D4AF37 !important;
+    }
+    
+    .paper {
+        background-color: #111111 !important;
+        border: 1px solid #D4AF37 !important;
+    }
+    
+    .button {
+        background-color: #000000 !important;
+        color: #D4AF37 !important;
+        border: 1px solid #D4AF37 !important;
+    }
+    
+    .button:hover {
+        background-color: #D4AF37 !important;
+        color: #000000 !important;
+    }
+    
+    .divider {
+        background-color: #D4AF37 !important;
+        height: 2px !important;
+    }
+    
+    .close-button {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        cursor: pointer;
+    }
+</style>
+
+<MudThemeProvider />
+<MudDialogService />
+<MudSnackbarProvider /> 
+<MudPopoverProvider />
+<AuthorizeView>
+    <Authorizing>
+        @* <div class="d-flex justify-center align-center" style="height: 100vh; background-color: #FFFFFF;"> *@
+        @*     <MudProgressCircular Indeterminate="true" Size="Size.Large" Color="Color.Error" /> *@
+        @* </div> *@
+    </Authorizing>
+    <NotAuthorized>
+        <RedirectToLogin />
+    </NotAuthorized>
+    <Authorized>
+        @if (authChecked)
+        {
+            <MudLayout>
+                <MudAppBar Elevation="3" Class="primary">
+                    <MudText Typo="Typo.h5" Class="ml-3 text" Style="font-weight: bold; letter-spacing: 1px;"> Blog App</MudText>
+                    <MudSpacer />
+                    
+                    <MudButton 
+                        Variant="Variant.Outlined" 
+                        Class="mr-2 button"
+                        StartIcon="@Icons.Material.Filled.Add" 
+                        OnClick="NavigateToCreatePost">
+                        Create Post
+                    </MudButton>
+                    
+                    <MudAvatar 
+                        Class="avatar"
+                        Style="cursor: pointer;"
+                        @onclick="ToggleOpen">
+                        @GetFirstLetter(userName)
+                    </MudAvatar>
+                    
+                    <MudPopover Open="@_isOpen" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                        <MudPaper Elevation="0" Class="pa-4 paper" Style="min-width: 250px; position: relative;">
+                            <MudIconButton Icon="@Icons.Material.Filled.Close" 
+                                           Size="Size.Small" 
+                                           Color="Color.Error" 
+                                           Class="close-button"
+                                           OnClick="ToggleOpen" />
+                        
+                            <div class="d-flex flex-column gap-3">
+                                <div class="d-flex align-center justify-center gap-3 mb-2">
+                                    <MudAvatar Class="avatar">@GetFirstLetter(userName)</MudAvatar>
+                                    <MudText Typo="Typo.h6" Class="gold" Style="font-weight: bold;">My Profile</MudText>
+                                </div>
+                                
+                                <MudDivider Class="divider" />
+                                
+                                <div class="text-center">
+                                    <MudText Typo="Typo.caption" Class="gold">NAME</MudText>
+                                    <MudText Typo="Typo.body1" Class="text">@userName</MudText>
+                                </div>
+                                
+                                <div class="text-center">
+                                    <MudText Typo="Typo.caption" Class="gold">EMAIL</MudText>
+                                    <MudText Typo="Typo.body1" Class="text" Style="word-break: break-all;">@userEmail</MudText>
+                                </div>
+                                
+                                <MudButton 
+                                    Variant="Variant.Filled" 
+                                    Class="button mt-2"
+                                    StartIcon="@Icons.Material.Filled.Logout" 
+                                    FullWidth="true"
+                                    OnClick="HandleLogout">
+                                    LOGOUT
+                                </MudButton>
+                            </div>
+                        </MudPaper>
+                    </MudPopover>
+                </MudAppBar>
+                
+                <MudMainContent Style="background-color: #FFFFFF; min-height: calc(100vh - 64px);">
+                    @Body
+                </MudMainContent>
+            </MudLayout>
+        }
+        else
+        {
+            <div class="d-flex justify-center align-center" style="height: 100vh; background-color: #FFFFFF;">
+                <MudProgressCircular Indeterminate="true" Size="Size.Large" Color="Color.Error" />
+            </div>
+        }
+    </Authorized>
+</AuthorizeView>
+@code {
+    private bool authChecked = false;
+    private bool _isOpen = false;
+    private string userName = string.Empty;
+    private string userId = string.Empty;
+    private string userEmail = string.Empty;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        try {
+            // Retrieve token from local storage
+            var token = await LocalStorage.GetItemAsStringAsync("authToken");
+            
+            if (!string.IsNullOrEmpty(token)) {
+                // Get user info
+                userName = await AuthService.GetUserNameAsync();
+                userId = await AuthService.GetUserIdAsync();
+                
+                // Extract email from token claims
+                var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
+                var jwtToken = handler.ReadJwtToken(token);
+                userEmail = jwtToken.Claims.FirstOrDefault(c => c.Type == "email")?.Value ?? string.Empty;
+                
+                // Check if the token is valid
+                var authResult = await AuthService.CheckAuth(token);
+                if (authResult == null) {
+                    Navigation.NavigateTo("/login");
+                    return; // Exit early if authentication fails
+                }
+            } else {
+                Navigation.NavigateTo("/login");
+                return; // Exit early if no token found
+            }
+        }
+        catch (Exception ex) {
+            Console.WriteLine($"Authentication error: {ex.Message}");
+            Navigation.NavigateTo("/login");
+            return; // Exit early if an exception occurs
+        }
+        finally {
+            authChecked = true;
+            StateHasChanged(); // Force UI update
+        }
+    }
+    
+    private void ToggleOpen()
+    {
+        _isOpen = !_isOpen;
+    }
+    
+    private string GetFirstLetter(string name)
+    {
+        return !string.IsNullOrEmpty(name) ? name[0].ToString().ToUpper() : "?";
+    }
+    
+    private void NavigateToCreatePost()
+    {
+        Navigation.NavigateTo("/create-post");
+    }
+    
+    private async Task HandleLogout()
+    {
+        // Close the popover
+        _isOpen = false;
+        
+        // Clear local storage
+        await LocalStorage.RemoveItemAsync("authToken");
+        
+        // Call logout service method
+        await AuthService.Logout();
+        
+        // Navigate to login page
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+}

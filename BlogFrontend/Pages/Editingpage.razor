@@ -1,0 +1,356 @@
+﻿@page "/edit-post/{PostId}"
+@using BlogFrontend.Models
+@using BlogFrontend.Services
+@inject IBlogService BlogService
+@inject NavigationManager NavigationManager
+@inject IAuthService AuthService
+@inject ISnackbar Snackbar
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Edit Post</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="pa-4">
+    @if (loading)
+    {
+        <div class="d-flex align-center justify-center" style="min-height: 400px;">
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
+        </div>
+    }
+    else if (post == null)
+    {
+        <MudAlert Severity="Severity.Error" Class="pa-6 border-radius-8">
+            <MudText Typo="Typo.subtitle1">Post not found or has been deleted.</MudText>
+            <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="@(() => NavigationManager.NavigateTo("/"))" Class="mt-2">
+                Return to Home
+            </MudButton>
+        </MudAlert>
+    }
+    else
+    {
+        <MudPaper Elevation="3" Class="pa-4">
+            <MudText Typo="Typo.h4" Class="mb-4">Edit Post</MudText>
+
+            <EditForm Model="@post" OnValidSubmit="HandleValidSubmit">
+                <DataAnnotationsValidator />
+
+                <MudTextField T="string"
+                              Label="Title"
+                              @bind-Value="post.Title"
+                              Required="true"
+                              RequiredError="Title is required"
+                              Class="mb-3" />
+
+                <MudText Class="mb-2">Content</MudText>
+                <MudPaper Elevation="1" Class="border-radius-8 overflow-hidden mb-3">
+                    <MudToolBar Dense="true" Class="mud-background-gray px-4 py-2">
+                        <MudTooltip Text="Bold">
+                            <MudIconButton Icon="@Icons.Material.Filled.FormatBold" OnClick="@(() => ExecuteTextCommand("bold"))" Color="@GetActiveColor("bold")" Size="Size.Small" Class="mx-1" />
+                        </MudTooltip>
+                        <MudTooltip Text="Italic">
+                            <MudIconButton Icon="@Icons.Material.Filled.FormatItalic" OnClick="@(() => ExecuteTextCommand("italic"))" Color="@GetActiveColor("italic")" Size="Size.Small" Class="mx-1" />
+                        </MudTooltip>
+                        <MudTooltip Text="Underline">
+                            <MudIconButton Icon="@Icons.Material.Filled.FormatUnderlined" OnClick="@(() => ExecuteTextCommand("underline"))" Color="@GetActiveColor("underline")" Size="Size.Small" Class="mx-1" />
+                        </MudTooltip>
+                        <MudDivider Vertical="true" Class="mx-3" />
+                        <MudTooltip Text="Heading 1">
+                            <MudIconButton Icon="@Icons.Material.Filled.Title" OnClick="@(() => ExecuteTextCommand("formatBlock", "h1"))" Color="@GetActiveColor("h1")" Size="Size.Small" Class="mx-1" />
+                        </MudTooltip>
+                        <MudTooltip Text="Heading 2">
+                            <MudIconButton Icon="@Icons.Material.Filled.FormatSize" OnClick="@(() => ExecuteTextCommand("formatBlock", "h2"))" Color="@GetActiveColor("h2")" Size="Size.Small" Class="mx-1" />
+                        </MudTooltip>
+                        <MudDivider Vertical="true" Class="mx-3" />
+                        <MudTooltip Text="Bulleted List">
+                            <MudIconButton Icon="@Icons.Material.Filled.FormatListBulleted" OnClick="@(() => ExecuteTextCommand("insertUnorderedList"))" Color="@GetActiveColor("ul")" Size="Size.Small" Class="mx-1" />
+                        </MudTooltip>
+                        <MudTooltip Text="Numbered List">
+                            <MudIconButton Icon="@Icons.Material.Filled.FormatListNumbered" OnClick="@(() => ExecuteTextCommand("insertOrderedList"))" Color="@GetActiveColor("ol")" Size="Size.Small" Class="mx-1" />
+                        </MudTooltip>
+                        <MudDivider Vertical="true" Class="mx-3" />
+                        <MudTooltip Text="Align Left">
+                            <MudIconButton Icon="@Icons.Material.Filled.FormatAlignLeft" OnClick="@(() => ExecuteTextCommand("justifyLeft"))" Color="@GetActiveColor("justifyLeft")" Size="Size.Small" Class="mx-1" />
+                        </MudTooltip>
+                        <MudTooltip Text="Align Center">
+                            <MudIconButton Icon="@Icons.Material.Filled.FormatAlignCenter" OnClick="@(() => ExecuteTextCommand("justifyCenter"))" Color="@GetActiveColor("justifyCenter")" Size="Size.Small" Class="mx-1" />
+                        </MudTooltip>
+                        <MudTooltip Text="Align Right">
+                            <MudIconButton Icon="@Icons.Material.Filled.FormatAlignRight" OnClick="@(() => ExecuteTextCommand("justifyRight"))" Color="@GetActiveColor("justifyRight")" Size="Size.Small" Class="mx-1" />
+                        </MudTooltip>
+                    </MudToolBar>
+                    <div @ref="editorRef"
+                         contenteditable="true"
+                         class="p-4 font-size-16 line-height-1-6 editor-content"
+                         style="min-height: 300px; max-height: 500px; overflow-y: auto;"
+                         @oninput="OnContentChanged"
+                         @onclick="UpdateActiveStyles"
+                         @onkeyup="UpdateActiveStyles"></div>
+                </MudPaper>
+
+                <MudTextField T="string"
+                              Label="Tags (comma-separated)"
+                              @bind-Value="tagsInput"
+                              Class="mb-3" />
+
+                <MudField Label="Image" Class="mb-4">
+                    <InputFile id="fileInput" OnChange="HandleFileSelected" hidden />
+                    <div class="d-flex align-center">
+                        <MudButton HtmlTag="label"
+                                   Color="Color.Primary"
+                                   Variant="Variant.Filled"
+                                   for="fileInput">
+                            @(selectedFile != null ? "Change Image" : (!string.IsNullOrEmpty(post.ImageBase64) ? "Change Image" : "Upload Image"))
+                        </MudButton>
+                        <MudText Class="ml-3">@(selectedFile?.Name ?? "No file selected")</MudText>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(post.ImageBase64) && selectedFile == null)
+                    {
+                        <div class="mt-2">
+                            <img src="@($"data:image/jpeg;base64,{post.ImageBase64}")" style="max-width: 100%; max-height: 300px;" />
+                        </div>
+                    }
+                    @if (imagePreview != null)
+                    {
+                        <div class="mt-2">
+                            <img src="@imagePreview" style="max-width: 100%; max-height: 300px;" />
+                        </div>
+                    }
+                </MudField>
+
+                <div class="d-flex justify-space-between mt-4">
+                    <MudButton OnClick="GoBack"
+                               Variant="Variant.Outlined"
+                               Color="Color.Secondary">
+                        Cancel
+                    </MudButton>
+                    <MudButton ButtonType="ButtonType.Submit"
+                               Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               Disabled="@isSubmitting">
+                        @if (isSubmitting)
+                        {
+                            <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                            <MudText Class="ms-2">Saving...</MudText>
+                        }
+                        else
+                        {
+                            <MudText>Save Changes</MudText>
+                        }
+                    </MudButton>
+                </div>
+            </EditForm>
+        </MudPaper>
+    }
+</MudContainer>
+
+@code {
+    [Parameter]
+    public string PostId { get; set; }
+
+    private BlogFrontend.Models.Post post;
+    private bool loading = true;
+    private string userId;
+    private bool isSubmitting = false;
+    private string tagsInput;
+    private IBrowserFile selectedFile;
+    private string imagePreview;
+    private ElementReference editorRef;
+    private Dictionary<string, bool> activeStyles = new Dictionary<string, bool>();
+    private bool contentLoaded = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            userId = await AuthService.GetUserIdAsync();
+            post = await BlogService.GetPostByIdAsync(PostId);
+
+            if (post != null)
+            {
+                if (post.UserId != userId)
+                {
+                    Snackbar.Add("You can only edit your own posts", Severity.Error);
+                    NavigationManager.NavigateTo($"/post/{PostId}");
+                    return;
+                }
+                tagsInput = post.Tags != null ? string.Join(", ", post.Tags) : "";
+                post.Tags ??= new List<string>();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading post: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            loading = false;
+            StateHasChanged();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Initialize setEditorContent JavaScript function
+            await JSRuntime.InvokeVoidAsync("eval", @"
+                window.setEditorContent = function(element, content) {
+                    if (element) {
+                        element.innerHTML = content;
+                    }
+                };
+            ");
+        }
+
+        // Load the content after the editor is rendered and only once
+        if (!contentLoaded && post != null && !string.IsNullOrEmpty(post.Content) && editorRef.Id != null)
+        {
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("setEditorContent", editorRef, post.Content);
+                contentLoaded = true;
+                await UpdateActiveStyles();
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error loading content: {ex.Message}", Severity.Warning);
+            }
+        }
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo($"/post/{PostId}");
+    }
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        selectedFile = e.File;
+
+        if (selectedFile != null)
+        {
+            var buffer = new byte[selectedFile.Size];
+            await selectedFile.OpenReadStream(maxAllowedSize: 10485760).ReadAsync(buffer);
+            var imageType = selectedFile.ContentType;
+            imagePreview = $"data:{imageType};base64,{Convert.ToBase64String(buffer)}";
+        }
+    }
+
+    private void OnContentChanged(ChangeEventArgs args)
+    {
+        post.Content = args.Value?.ToString();
+    }
+
+    private async Task ExecuteTextCommand(string command, string value = null)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            await JSRuntime.InvokeVoidAsync("document.execCommand", command, false, null);
+        }
+        else
+        {
+            await JSRuntime.InvokeVoidAsync("document.execCommand", command, false, value);
+        }
+        await UpdateActiveStyles();
+    }
+
+    private async Task UpdateActiveStyles()
+    {
+        activeStyles["bold"] = await JSRuntime.InvokeAsync<bool>("document.queryCommandState", "bold");
+        activeStyles["italic"] = await JSRuntime.InvokeAsync<bool>("document.queryCommandState", "italic");
+        activeStyles["underline"] = await JSRuntime.InvokeAsync<bool>("document.queryCommandState", "underline");
+        string formatBlock = await JSRuntime.InvokeAsync<string>("document.queryCommandValue", "formatBlock");
+        activeStyles["h1"] = formatBlock == "h1" || formatBlock == "H1";
+        activeStyles["h2"] = formatBlock == "h2" || formatBlock == "H2";
+        activeStyles["ul"] = await JSRuntime.InvokeAsync<bool>("document.queryCommandState", "insertUnorderedList");
+        activeStyles["ol"] = await JSRuntime.InvokeAsync<bool>("document.queryCommandState", "insertOrderedList");
+        activeStyles["justifyLeft"] = await JSRuntime.InvokeAsync<bool>("document.queryCommandState", "justifyLeft");
+        activeStyles["justifyCenter"] = await JSRuntime.InvokeAsync<bool>("document.queryCommandState", "justifyCenter");
+        activeStyles["justifyRight"] = await JSRuntime.InvokeAsync<bool>("document.queryCommandState", "justifyRight");
+        StateHasChanged();
+    }
+
+    private Color GetActiveColor(string style)
+    {
+        return activeStyles.ContainsKey(style) && activeStyles[style]
+            ? Color.Primary
+            : Color.Default;
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        if (!isSubmitting)
+        {
+            try
+            {
+                isSubmitting = true;
+
+                // Get the updated content from the editor
+                var editorContent = await JSRuntime.InvokeAsync<string>(
+                    "eval", "document.querySelector('[contenteditable]').innerHTML");
+                post.Content = editorContent ?? post.Content; // Fallback to existing content if empty
+
+                List<string> tags = new List<string>();
+                if (!string.IsNullOrWhiteSpace(tagsInput))
+                {
+                    tags = tagsInput.Split(',')
+                        .Select(t => t.Trim())
+                        .Where(t => !string.IsNullOrWhiteSpace(t))
+                        .ToList();
+                }
+
+                var updatedPost = await BlogService.UpdatePostAsync(
+                    PostId,
+                    post.Title,
+                    post.Content,
+                    selectedFile,
+                    tags
+                );
+
+                if (updatedPost != null)
+                {
+                    post = updatedPost;
+                    selectedFile = null;
+                    imagePreview = null;
+                    Snackbar.Add("Post updated successfully!", Severity.Success);
+                    NavigationManager.NavigateTo($"/post/{PostId}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error updating post: {ex.Message}", Severity.Error);
+            }
+            finally
+            {
+                isSubmitting = false;
+                StateHasChanged();
+            }
+        }
+    }
+}
+
+<style>
+    .border-radius-8 {
+        border-radius: 8px;
+    }
+
+    .font-size-16 {
+        font-size: 16px !important;
+    }
+
+    .line-height-1-6 {
+        line-height: 1.6 !important;
+    }
+
+    .editor-content {
+        border: 1px solid #e0e0e0;
+        border-top: none;
+        outline: none;
+        transition: border-color 0.2s ease;
+    }
+
+        .editor-content:focus {
+            border-color: #1976d2; /* Matches MudBlazor Primary color */
+        }
+</style>

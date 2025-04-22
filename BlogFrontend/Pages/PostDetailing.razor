@@ -1,0 +1,733 @@
+﻿@page "/post/{PostId}"
+@using BlogFrontend.Models
+@using BlogFrontend.Services
+@using System.Text.RegularExpressions
+@inject IBlogService BlogService
+@inject NavigationManager NavigationManager
+@inject IAuthService AuthService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@* @inject TextReaderService TextReaderService *@
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="post-container mt-8 mb-16">
+    <div class="d-flex justify-start mb-6">
+        <MudButton StartIcon="@Icons.Material.Filled.ArrowBack"
+                   Variant="Variant.Text"
+                   Color="Color.Primary"
+                   Size="Size.Large"
+                   OnClick="@(() => NavigationManager.NavigateTo("/"))">
+            Back to Posts
+        </MudButton>
+    </div>
+
+    @if (loading)
+    {
+        <div class="d-flex flex-column align-center justify-center my-16">
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
+            <MudText Typo="Typo.h6" Class="mt-6">Loading post...</MudText>
+        </div>
+    }
+    else if (currentPost == null)
+    {
+        <MudCard Elevation="3" Class="pa-6 my-8 rounded-lg post-not-found">
+            <MudCardContent Class="d-flex flex-column align-center">
+                <MudIcon Icon="@Icons.Material.Outlined.ErrorOutline" Color="Color.Error" Size="Size.Large" Class="mb-4" />
+                <MudText Typo="Typo.h5" Class="mb-3">Post not found</MudText>
+                <MudText Typo="Typo.body1" Class="mb-6 text-center">This post may have been deleted or doesn't exist.</MudText>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" OnClick="@(() => NavigationManager.NavigateTo("/"))">
+                    Back to Home
+                </MudButton>
+            </MudCardContent>
+        </MudCard>
+    }
+    else
+    {
+        <!-- Main post details -->
+        <MudPaper Elevation="3" Class="post-paper pa-8 mb-10 rounded-xl">
+            <!-- Author info and post actions row -->
+            <div class="d-flex justify-space-between align-center mb-6">
+                <div class="d-flex align-center">
+                    <MudAvatar Color="Color.Primary" Size="Size.Large" Class="mr-4">@GetInitial(currentPost.UserName)</MudAvatar>
+                    <div>
+                        <MudText Typo="Typo.h6" Class="font-weight-bold">@currentPost.UserName</MudText>
+                        <MudText Typo="Typo.body2" Class="d-flex align-center mt-1">
+                            <MudIcon Icon="@Icons.Material.Filled.CalendarToday" Size="Size.Small" Class="mr-2" />
+                            @currentPost.CreatedAt.ToString("MMMM dd, yyyy")
+                        </MudText>
+                    </div>
+                </div>
+
+                @if (IsCurrentUserAuthor(currentPost))
+                {
+                    <div>
+                        <MudTooltip Text="Edit Post">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                           OnClick="@(() => EditPost(currentPost))"
+                                           Color="Color.Primary"
+                                           Size="Size.Medium" />
+                        </MudTooltip>
+                        <MudTooltip Text="Delete Post">
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                           OnClick="@(() => DeletePostWithConfirmation(currentPost.Id))"
+                                           Color="Color.Error"
+                                           Size="Size.Medium" />
+                        </MudTooltip>
+                    </div>
+                }
+            </div>
+
+            <!-- Post title -->
+            <MudText Typo="Typo.h2" Class="mb-6 post-title-text">@currentPost.Title</MudText>
+
+            <!-- Post feature image (if available) -->
+            @if (currentPost.ImageBytes != null && currentPost.ImageBytes.Length > 0)
+            {
+                <div class="post-feature-image mb-8">
+                    <img src="@($"data:image/jpeg;base64,{Convert.ToBase64String(currentPost.ImageBytes)}")"
+                         alt="@currentPost.Title" class="rounded-xl" />
+                </div>
+            }
+
+            <!-- Post content -->
+            <div class="post-content-wrapper mt-6">
+                <MudText Typo="Typo.body1" Class="post-content">
+                    @((MarkupString)FormatContent(currentPost.Content))
+                </MudText>
+            </div>
+
+            <!-- Tags section -->
+            @if (currentPost.Tags != null && currentPost.Tags.Any())
+            {
+                <div class="d-flex flex-wrap gap-2 mt-8">
+                    @foreach (var tag in currentPost.Tags)
+                    {
+                        <MudChip T="string" Color="Color.Primary" Size="Size.Medium" Variant="Variant.Outlined">@tag</MudChip>
+                    }
+                </div>
+            }
+
+            <MudDivider Class="my-8" />
+
+            <!-- Post actions section -->
+            <div class="d-flex flex-wrap align-center post-actions gap-6">
+                <div>
+                    @if (currentPost.LikedBy.Any(l => l.UserId == userId))
+                    {
+                        <MudButton StartIcon="@Icons.Material.Filled.Favorite"
+                                   Color="Color.Error"
+                                   Variant="Variant.Filled"
+                                   Size="Size.Large"
+                                   Class="px-4"
+                                   OnClick="@(() => UnlikePost(currentPost.Id))">
+                            @currentPost.Likes Like@(currentPost.Likes != 1 ? "s" : "")
+                        </MudButton>
+                    }
+                    else
+                    {
+                        <MudButton StartIcon="@Icons.Material.Outlined.FavoriteBorder"
+                                   Color="Color.Primary"
+                                   Variant="Variant.Outlined"
+                                   Size="Size.Large"
+                                   Class="px-4"
+                                   OnClick="@(() => LikePost(currentPost.Id))">
+                            @currentPost.Likes Like@(currentPost.Likes != 1 ? "s" : "")
+                        </MudButton>
+                    }
+                </div>
+
+                <div class="d-flex align-center">
+                    <MudIcon Icon="@Icons.Material.Outlined.Comment" Size="Size.Medium" Class="mr-2" />
+                    <MudText Typo="Typo.body1">@currentPost.Comments.Count Comment@(currentPost.Comments.Count != 1 ? "s" : "")</MudText>
+                </div>
+
+                @* <!-- Add Play and Pause Buttons --> *@
+                @* <MudButton StartIcon="@Icons.Material.Filled.PlayArrow" *@
+                @*            Color="Color.Primary" *@
+                @*            Variant="Variant.Outlined" *@
+                @*            Size="Size.Large" *@
+                @*            Class="px-4" *@
+                @*            OnClick="@PlayAudio"> *@
+                @*     Play *@
+                @* </MudButton> *@
+                @* <MudButton StartIcon="@Icons.Material.Filled.Pause" *@
+                @*            Color="Color.Secondary" *@
+                @*            Variant="Variant.Outlined" *@
+                @*            Size="Size.Large" *@
+                @*            Class="px-4" *@
+                @*            OnClick="@PauseAudio"> *@
+                @*     Pause *@
+                @* </MudButton> *@
+            </div>
+
+            <!-- Liked by section - enhanced with better spacing and visuals -->
+            @if (currentPost.LikedBy.Any())
+            {
+                <MudPaper Elevation="0" Class="mt-6 pa-4 liked-by-section rounded-lg">
+                    <MudText Typo="Typo.subtitle2" Class="mb-3">Liked by:</MudText>
+                    <div class="d-flex flex-wrap gap-3 align-center">
+                        @foreach (var likedBy in currentPost.LikedBy)
+                        {
+                            <MudTooltip Text="@likedBy.UserName">
+                                <div class="liked-by-user d-flex align-center">
+                                    <MudAvatar Color="Color.Secondary" Size="Size.Medium">@GetInitial(likedBy.UserName)</MudAvatar>
+                                    <MudText Typo="Typo.body2" Class="ml-2">@likedBy.UserName</MudText>
+                                </div>
+                            </MudTooltip>
+                        }
+                    </div>
+                </MudPaper>
+            }
+        </MudPaper>
+
+        <!-- Comments section with enhanced styling -->
+        <MudText Typo="Typo.h4" Class="mb-6 comment-section-title">Comments (@currentPost.Comments.Count)</MudText>
+
+        <!-- Comment form -->
+        <MudPaper Elevation="3" Class="pa-6 mb-8 rounded-xl comment-form">
+            <MudText Typo="Typo.h6" Class="mb-3">Leave a comment</MudText>
+            <MudTextField @bind-Value="currentPost.NewComment"
+                          Label="Write your comment"
+                          Placeholder="Share your thoughts on this post..."
+                          Lines="4"
+                          Variant="Variant.Outlined"
+                          Class="mb-4" />
+            <div class="d-flex justify-end">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           Size="Size.Large"
+                           Class="px-6"
+                           OnClick="@(() => AddComment(currentPost.Id))"
+                           Disabled="@string.IsNullOrWhiteSpace(currentPost.NewComment)">
+                    Submit Comment
+                </MudButton>
+            </div>
+        </MudPaper>
+
+        <!-- Comments list -->
+        @if (currentPost.Comments.Any())
+        {
+            <MudPaper Elevation="3" Class="pa-0 mb-10 rounded-xl overflow-hidden comments-container">
+                @foreach (var comment in currentPost.Comments.OrderByDescending(c => c.CreatedAt))
+                {
+                    <div class="pa-6 comment">
+                        <div class="d-flex align-center mb-3">
+                            <MudAvatar Color="Color.Secondary" Size="Size.Medium" Class="mr-3">
+                                @GetInitial(comment.UserName)
+                            </MudAvatar>
+                            <div class="flex-grow-1">
+                                <MudText Typo="Typo.h6" Class="font-weight-bold mb-0">@comment.UserName</MudText>
+                                <MudText Typo="Typo.caption">@comment.CreatedAt.ToString("MMM dd, yyyy HH:mm")</MudText>
+                            </div>
+
+                            @if (comment.UserId == userId)
+                            {
+                                <MudTooltip Text="Delete Comment">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                   Size="Size.Medium"
+                                                   Color="Color.Error"
+                                                   OnClick="@(() => DeleteCommentWithConfirmation(currentPost.Id, comment.Id))" />
+                                </MudTooltip>
+                            }
+                        </div>
+                        <MudText Typo="Typo.body1" Class="comment-text">@comment.Text</MudText>
+                    </div>
+                    <MudDivider />
+                }
+            </MudPaper>
+        }
+        else
+        {
+            <MudPaper Elevation="2" Class="pa-8 text-center mb-10 rounded-xl empty-comments">
+                <MudIcon Icon="@Icons.Material.Outlined.ChatBubbleOutline" Size="Size.Large" Color="Color.Primary" Class="mb-4" />
+                <MudText Typo="Typo.h6" Class="mb-2">
+                    No comments yet
+                </MudText>
+                <MudText Typo="Typo.body1" Class="text-secondary">
+                    Be the first to share your thoughts on this post!
+                </MudText>
+            </MudPaper>
+        }
+    }
+
+    @DeletePostPopover
+    @DeleteCommentPopover
+</MudContainer>
+
+<style>
+    .post-container {
+        max-width: 900px;
+    }
+
+    .post-paper {
+        border-radius: 12px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    }
+
+    .post-title-text {
+        font-weight: 700;
+        line-height: 1.2;
+        letter-spacing: -0.5px;
+    }
+
+    .post-feature-image {
+        max-height: 600px;
+        overflow: hidden;
+        border-radius: 12px;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+    }
+
+        .post-feature-image img {
+            width: 100%;
+            object-fit: cover;
+        }
+
+    .post-content-wrapper {
+        overflow-wrap: break-word;
+        word-wrap: break-word;
+        hyphens: auto;
+        max-width: 100%;
+    }
+
+    .post-content {
+        line-height: 1.9;
+        font-size: 1.125rem;
+    }
+
+        .post-content img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin: 1.5rem 0;
+        }
+
+        .post-content a {
+            color: var(--mud-palette-primary);
+            text-decoration: none;
+            border-bottom: 2px solid var(--mud-palette-primary-lighten);
+            transition: all 0.2s ease;
+            padding-bottom: 2px;
+        }
+
+            .post-content a:hover {
+                border-bottom: 2px solid var(--mud-palette-primary);
+            }
+
+    .post-actions {
+        padding: 8px 0;
+    }
+
+    .liked-by-section {
+        background-color: var(--mud-palette-background-grey);
+        border-radius: 12px;
+    }
+
+    .liked-by-user {
+        background-color: var(--mud-palette-surface);
+        border-radius: 24px;
+        padding: 4px 12px 4px 4px;
+        transition: all 0.3s;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+        .liked-by-user:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+    .comment-section-title {
+        position: relative;
+        padding-bottom: 12px;
+    }
+
+        .comment-section-title:after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 60px;
+            height: 3px;
+            background-color: var(--mud-palette-primary);
+        }
+
+    .comment-form {
+        background-color: var(--mud-palette-surface);
+        transition: box-shadow 0.3s;
+    }
+
+        .comment-form:hover {
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+        }
+
+    .comments-container {
+        box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+    }
+
+    .comment {
+        background-color: var(--mud-palette-surface);
+        transition: background-color 0.2s;
+    }
+
+        .comment:hover {
+            background-color: var(--mud-palette-background-grey);
+        }
+
+    .comment-text {
+        padding: 8px 0 0 48px;
+        line-height: 1.6;
+    }
+
+    .empty-comments {
+        background-color: var(--mud-palette-background-grey);
+        border: 2px dashed var(--mud-palette-divider);
+    }
+
+    .post-not-found {
+        background-color: var(--mud-palette-background-grey);
+    }
+
+    .post-share-buttons {
+        display: flex;
+        gap: 8px;
+    }
+
+    /* Custom styles for centered popover */
+    .centered-popover {
+        position: fixed !important;
+        top: 50% !important;
+        left: 50% !important;
+        transform: translate(-50%, -50%) !important;
+        z-index: 1000;
+    }
+
+    @@media (max-width: 599px) {
+        .post-container {
+            padding-left: 16px;
+            padding-right: 16px;
+        }
+
+        .post-paper {
+            padding: 16px !important;
+        }
+
+        .post-title-text {
+            font-size: 1.8rem !important;
+        }
+
+        .post-content {
+            font-size: 1rem;
+        }
+
+        .liked-by-user {
+            padding: 2px 8px 2px 2px;
+        }
+
+        .comment {
+            padding: 16px !important;
+        }
+
+        .comment-text {
+            padding-left: 0;
+        }
+    }
+</style>
+
+@code {
+    [Parameter]
+    public string PostId { get; set; }
+
+    private BlogFrontend.Models.Post currentPost;
+    private List<BlogFrontend.Models.Post> allPosts;
+    private bool loading = true;
+    private string userId;
+    private bool deletePostPopoverOpen = false;
+    private bool deleteCommentPopoverOpen = false;
+    private string currentCommentIdToDelete = null;
+
+    // Add variables for audio control
+    // private byte[] _audioBytes;
+    // private double _currentAudioPosition = 0;
+    // private bool _isAudioLoaded = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            userId = await AuthService.GetUserIdAsync();
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading post: {ex.Message}", Severity.Error);
+            Console.WriteLine($"Error loading post: {ex.Message}");
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            currentPost = await BlogService.GetPostByIdAsync(PostId);
+            if (currentPost != null)
+            {
+                currentPost.NewComment = string.Empty;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading current post: {ex.Message}");
+        }
+    }
+
+    private void NavigateToPostDetails(string postId)
+    {
+        NavigationManager.NavigateTo($"/post/{postId}");
+    }
+
+    private string GetInitial(string name)
+    {
+        if (string.IsNullOrEmpty(name))
+            return "?";
+        return name.Substring(0, 1).ToUpper();
+    }
+
+    private async Task LikePost(string postId)
+    {
+        try
+        {
+            var updatedPost = await BlogService.LikePostAsync(postId);
+            if (updatedPost != null)
+            {
+                currentPost.Likes = updatedPost.Likes;
+                currentPost.LikedBy = updatedPost.Likes > 0 ? updatedPost.LikedBy : new List<Like>(); // Updated to use Like
+                Snackbar.Add("Post liked successfully!", Severity.Success);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error liking post: {ex.Message}", Severity.Error);
+            Console.WriteLine($"Error liking post: {ex.Message}");
+        }
+    }
+
+    private async Task UnlikePost(string postId)
+    {
+        try
+        {
+            var updatedPost = await BlogService.UnlikePostAsync(postId);
+            if (updatedPost != null)
+            {
+                currentPost.Likes = updatedPost.Likes;
+                currentPost.LikedBy = updatedPost.LikedBy.Where(l => l.UserId != userId).ToList();
+                Snackbar.Add("Post unliked successfully!", Severity.Success);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error unliking post: {ex.Message}", Severity.Error);
+            Console.WriteLine($"Error unliking post: {ex.Message}");
+        }
+    }
+
+    private async Task AddComment(string postId)
+    {
+        if (!string.IsNullOrWhiteSpace(currentPost.NewComment))
+        {
+            try
+            {
+                var success = await BlogService.AddCommentAsync(postId, currentPost.NewComment);
+                if (success)
+                {
+                    currentPost.NewComment = string.Empty;
+                    await LoadData();
+                    Snackbar.Add("Comment added successfully!", Severity.Success);
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error adding comment: {ex.Message}", Severity.Error);
+                Console.WriteLine($"Error adding comment: {ex.Message}");
+            }
+        }
+    }
+
+    private void EditPost(BlogFrontend.Models.Post post)
+    {
+        NavigationManager.NavigateTo($"/edit-post/{post.Id}");
+    }
+
+    private async Task DeletePostWithConfirmation(string postId)
+    {
+        deletePostPopoverOpen = true;
+        StateHasChanged();
+        await Task.CompletedTask;
+    }
+
+    private async Task DeletePost(string postId)
+    {
+        try
+        {
+            var success = await BlogService.DeletePostAsync(postId);
+            if (success)
+            {
+                deletePostPopoverOpen = false;
+                Snackbar.Add("Post deleted successfully!", Severity.Success);
+                NavigationManager.NavigateTo("/");
+            }
+        }
+        catch (Exception ex)
+        {
+            deletePostPopoverOpen = false;
+            Snackbar.Add($"Error deleting post: {ex.Message}", Severity.Error);
+            Console.WriteLine($"Error deleting post: {ex.Message}");
+        }
+    }
+
+    private async Task DeleteCommentWithConfirmation(string postId, string commentId)
+    {
+        currentCommentIdToDelete = commentId;
+        deleteCommentPopoverOpen = true;
+        StateHasChanged();
+        await Task.CompletedTask;
+    }
+
+    private async Task DeleteComment(string postId, string commentId)
+    {
+        try
+        {
+            var success = await BlogService.DeleteCommentAsync(postId, commentId);
+            if (success)
+            {
+                deleteCommentPopoverOpen = false;
+                currentCommentIdToDelete = null;
+                Snackbar.Add("Comment deleted successfully!", Severity.Success);
+                await LoadData();
+            }
+        }
+        catch (Exception ex)
+        {
+            deleteCommentPopoverOpen = false;
+            currentCommentIdToDelete = null;
+            Snackbar.Add($"Error deleting comment: {ex.Message}", Severity.Error);
+            Console.WriteLine($"Error deleting comment: {ex.Message}");
+        }
+    }
+
+    private bool IsCurrentUserAuthor(BlogFrontend.Models.Post post)
+    {
+        return post.UserId == userId;
+    }
+
+    private string FormatContent(string content)
+    {
+        if (string.IsNullOrEmpty(content))
+            return string.Empty;
+
+        var urlPattern = @"(https?:\/\/[^\s]+)";
+        content = Regex.Replace(content, urlPattern, "<a href=\"$1\" target=\"_blank\" rel=\"noopener noreferrer\">$1</a>");
+        content = content.Replace(Environment.NewLine, "<br />");
+        return content;
+    }
+
+    private string GetContentPreview(string content)
+    {
+        if (string.IsNullOrEmpty(content))
+            return string.Empty;
+
+        content = Regex.Replace(content, "<.*?>", string.Empty);
+        if (content.Length > 150)
+        {
+            content = content.Substring(0, 150) + "...";
+        }
+        return content;
+    }
+
+    // private async Task PlayAudio()
+    // {
+    //     try
+    //     {
+    //         if (!_isAudioLoaded)
+    //         {
+    //             _audioBytes = await TextReaderService.GetPostAudioAsync(PostId);
+    //             _isAudioLoaded = true;
+    //         }
+    //         await TextReaderService.PlayAudio(_audioBytes, _currentAudioPosition);
+    //         Snackbar.Add("Playing post content", Severity.Info);
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         Snackbar.Add($"Error playing audio: {ex.Message}", Severity.Error);
+    //         Console.WriteLine($"Error playing audio: {ex.Message}");
+    //     }
+    // }
+
+    // private async Task PauseAudio()
+    // {
+    //     try
+    //     {
+    //         if (_isAudioLoaded)
+    //         {
+    //             _currentAudioPosition = await TextReaderService.PauseAudio();
+    //             Snackbar.Add("Audio paused", Severity.Info);
+    //         }
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         Snackbar.Add($"Error pausing audio: {ex.Message}", Severity.Error);
+    //         Console.WriteLine($"Error pausing audio: {ex.Message}");
+    //     }
+    // }
+
+    private RenderFragment DeletePostPopover => @<MudPopover Open="@deletePostPopoverOpen"
+                                                                 AnchorOrigin="Origin.TopCenter"
+                                                                 TransformOrigin="Origin.TopCenter"
+                                                                 Class="centered-popover">
+        <MudPaper Elevation="3" Class="pa-6 rounded-lg">
+            <MudText Typo="Typo.h6" Class="mb-2">Confirm Deletion</MudText>
+            <MudDivider Class="mb-4" />
+            <MudText Typo="Typo.body1" Class="mb-6">Are you sure you want to delete this post? This action cannot be undone.</MudText>
+            <div class="d-flex justify-end gap-2">
+                <MudButton Variant="Variant.Text"
+                           Color="Color.Default"
+                           Size="Size.Large"
+                           OnClick="@(() => deletePostPopoverOpen = false)">
+                    Cancel
+                </MudButton>
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Error"
+                           Size="Size.Large"
+                           OnClick="@(() => DeletePost(PostId))">
+                    Delete
+                </MudButton>
+            </div>
+        </MudPaper>
+    </MudPopover>;
+
+    private RenderFragment DeleteCommentPopover => @<MudPopover Open="@deleteCommentPopoverOpen"
+                                                                    AnchorOrigin="Origin.TopCenter"
+                                                                    TransformOrigin="Origin.TopCenter"
+                                                                    Class="centered-popover">
+        <MudPaper Elevation="3" Class="pa-6 rounded-lg">
+            <MudText Typo="Typo.h6" Class="mb-2">Confirm Deletion</MudText>
+            <MudDivider Class="mb-4" />
+            <MudText Typo="Typo.body1" Class="mb-6">Are you sure you want to delete this comment?</MudText>
+            <div class="d-flex justify-end gap-2">
+                <MudButton Variant="Variant.Text"
+                           Color="Color.Default"
+                           Size="Size.Large"
+                           OnClick="@(() => { deleteCommentPopoverOpen = false; currentCommentIdToDelete = null; })">
+                    Cancel
+                </MudButton>
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Error"
+                           Size="Size.Large"
+                           OnClick="@(() => DeleteComment(PostId, currentCommentIdToDelete))">
+                    Delete
+                </MudButton>
+            </div>
+        </MudPaper>
+    </MudPopover>;
+}

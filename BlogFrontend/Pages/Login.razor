@@ -1,0 +1,122 @@
+﻿@page "/login"
+@layout LoginLayout
+@using BlogFrontend.Services
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<div class="d-flex justify-center align-center" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: #e91e63; width: 100vw; height: 100vh;">
+    <div class="text-center" style="max-width: 500px; width: 100%; padding: 40px 20px;">
+        <div class="mb-6">
+            <MudIcon Icon="@Icons.Material.Filled.Article" Style="color: white; font-size: 40px;" Class="mb-2" />
+            <MudText Typo="Typo.h5" Class="font-weight-bold" Style="color: white;">Blog Application</MudText>
+        </div>
+
+        <MudText Typo="Typo.h5" Class="mb-3" Style="color: white;">Login</MudText>
+
+        <div class="d-flex justify-center mb-2">
+            <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.8);">Are you a new user?</MudText>
+            <MudButton Variant="Variant.Text"
+                       Color="Color.Default"
+                       OnClick="@(() => Navigation.NavigateTo("/register"))"
+                       Style="color: #3f51b5; padding: 0px 6px; min-width: 0; font-weight: 500;">
+                Register
+            </MudButton>
+        </div>
+
+        <MudForm Class="mt-4">
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Dense="true" Class="mb-4">
+                    @errorMessage
+                </MudAlert>
+            }
+
+            @if (!string.IsNullOrEmpty(successMessage))
+            {
+                <MudAlert Severity="Severity.Success" Variant="Variant.Filled" Dense="true" Class="mb-4">
+                    @successMessage
+                </MudAlert>
+            }
+
+            <MudTextField @bind-Value="email"
+                          Label="Username"
+                          Variant="Variant.Outlined"
+                          FullWidth="true"
+                          Class="mb-3 bg-white rounded-lg" />
+
+            <MudTextField @bind-Value="password"
+                          Label="Password"
+                          Variant="Variant.Outlined"
+                          InputType="InputType.Password"
+                          FullWidth="true"
+                          Class="mb-2 bg-white rounded-lg" />
+
+            <div class="d-flex justify-space-between align-center mb-4">
+                <MudCheckBox T="bool" Label="Remember me" Color="Color.Default" Style="color: white;" LabelPosition="LabelPosition.End" />
+                <MudButton Variant="Variant.Text"
+                           Color="Color.Default"
+                           OnClick="@(() => Navigation.NavigateTo("/forgot-password"))"
+                           Size="Size.Small"
+                           Style="color: #3f51b5; font-weight: 500;">
+                    Forgot password?
+                </MudButton>
+            </div>
+
+            <div class="d-flex justify-center mt-4">
+                <MudButton Variant="Variant.Filled"
+                           Style="background-color: #3f51b5; color: white; border-radius: 4px; width: 150px;"
+                           OnClick="Submit"
+                           Size="Size.Large"
+                           Disabled="isLoading">
+                    @if (isLoading)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                        <span>Signing in...</span>
+                    }
+                    else
+                    {
+                        <span>Login</span>
+                    }
+                </MudButton>
+            </div>
+        </MudForm>
+    </div>
+</div>
+
+@code {
+    private string email = "";
+    private string password = "";
+    private string errorMessage = "";
+    private string successMessage = "";
+    private bool isLoading = false;
+
+    private async Task Submit()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = "";
+            successMessage = "";
+            var response = await AuthService.Login(email, password);
+            if (response != null)
+            {
+                await JS.InvokeVoidAsync("localStorage.setItem", "authToken", response.AccessToken);
+                successMessage = "Login successful!";
+                Navigation.NavigateTo("/");
+            }
+            else
+            {
+                errorMessage = "Invalid credentials";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"An error occurred: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}
