@@ -59,7 +59,7 @@
                     </MudTooltip>
                     <MudDivider Vertical="true" Class="mx-3" />
                     <MudTooltip Text="Bulleted List">
-                        <MudepisodeIconButton Icon="@Icons.Material.Filled.FormatListBulleted" OnClick="@(() => ExecuteTextCommand("insertUnorderedList"))" Color="@GetActiveColor("ul")" Size="Size.Small" Class="mx-1" />
+                        <MudIconButton Icon="@Icons.Material.Filled.FormatListBulleted" OnClick="@(() => ExecuteTextCommand("insertUnorderedList"))" Color="@GetActiveColor("ul")" Size="Size.Small" Class="mx-1" />
                     </MudTooltip>
                     <MudTooltip Text="Numbered List">
                         <MudIconButton Icon="@Icons.Material.Filled.FormatListNumbered" OnClick="@(() => ExecuteTextCommand("insertOrderedList"))" Color="@GetActiveColor("ol")" Size="Size.Small" Class="mx-1" />
@@ -222,21 +222,45 @@
         try
         {
             isGenerating = true;
+            StateHasChanged();
+
+            if (string.IsNullOrWhiteSpace(postModel.Title))
+            {
+                Snackbar.Add("Please enter a title first", Severity.Warning);
+                return;
+            }
+
             var generatedContent = await AIContentService.GenerateContentAsync(postModel.Title);
-            postModel.Content = generatedContent;
-
-            // Use a parameterized JS call to set the content
-            await JSRuntime.InvokeVoidAsync("setEditorContent", editorRef, generatedContent);
-
-            Snackbar.Add("Content generated successfully!", Severity.Success);
+            if (!string.IsNullOrEmpty(generatedContent))
+            {
+                postModel.Content = generatedContent;
+                await JSRuntime.InvokeVoidAsync("setEditorContent", editorRef, generatedContent);
+                Snackbar.Add("Content generated successfully!", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("No content was generated. Please try again.", Severity.Warning);
+            }
         }
         catch (Exception ex)
         {
+            Console.WriteLine($"Failed to generate content: {ex.Message}");
             Snackbar.Add($"Failed to generate content: {ex.Message}", Severity.Error);
+            
+            // Provide more specific error messages based on the exception
+            if (ex.Message.Contains("500"))
+            {
+                Snackbar.Add("The AI service is currently unavailable. Please try again later.", Severity.Error);
+            }
+            else if (ex.Message.Contains("401") || ex.Message.Contains("403"))
+            {
+                Snackbar.Add("Authentication error. Please log in again.", Severity.Error);
+            }
         }
         finally
         {
             isGenerating = false;
+            StateHasChanged();
         }
     }
 
@@ -270,6 +294,7 @@
         }
         catch (Exception ex)
         {
+            Console.WriteLine($"Failed to create post: {ex.Message}");
             Snackbar.Add($"Failed to create post: {ex.Message}", Severity.Error);
         }
         finally

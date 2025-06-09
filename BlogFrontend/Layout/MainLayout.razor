@@ -6,26 +6,28 @@
 @inject NavigationManager Navigation
 @inject ILocalStorageService LocalStorage
 @inject IDialogService DialogService
+@inject IBlogService BlogService
+@inject IJSRuntime JS
 
 <style>
     .primary {
-        background-color: #EC1C24 !important; /* RCB Red */
+        background-color: #EC1C24 !important; 
     }
     
     .secondary {
-        background-color: #000000 !important; /* Black */
+        background-color: #000000 !important; 
     }
     
     .gold {
-        color: #D4AF37 !important; /* Gold accent */
+        color: #D4AF37 !important; 
     }
     
     .text {
-        color: #FFFFFF !important; /* White text */
+        color: #FFFFFF !important; 
     }
     
     .avatar {
-        background-color: #000000 !important; 
+        background-color: #000000 !important;
         color: #D4AF37 !important;
         border: 2px solid #D4AF37 !important;
     }
@@ -57,17 +59,70 @@
         right: 8px;
         cursor: pointer;
     }
+    
+    .nav-bar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background-color: #FFFFFF;
+        display: flex;
+        justify-content: space-around;
+        padding: 10px 0;
+        border-top: 1px solid #DDDDDD;
+        z-index: 100;
+    }
+    
+    .nav-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: #000000;
+        text-decoration: none;
+    }
+    
+    .nav-icon {
+        font-size: 28px;
+        margin-bottom: 4px;
+    }
+    
+    .active-nav-item {
+        color: #EC1C24 !important;
+    }
+    
+    .main-content-with-nav {
+        padding-bottom: 64px;
+    }
+    
+    .notification-icon {
+        color: #FFFFFF !important;
+        cursor: pointer;
+    }
+
+    .notification-container {
+        position: relative;
+        display: inline-block;
+    }
+
+    .notification-dot {
+        position: absolute;
+        top: 5px;
+        right: 10px;
+        width: 10px;
+        height: 10px;
+        background: red;
+        border-radius: 50%;
+        border: 2px solid white;
+        z-index: 10;
+    }
 </style>
 
 <MudThemeProvider />
-<MudDialogService />
+<MudDialogProvider />
 <MudSnackbarProvider /> 
 <MudPopoverProvider />
 <AuthorizeView>
     <Authorizing>
-        @* <div class="d-flex justify-center align-center" style="height: 100vh; background-color: #FFFFFF;"> *@
-        @*     <MudProgressCircular Indeterminate="true" Size="Size.Large" Color="Color.Error" /> *@
-        @* </div> *@
     </Authorizing>
     <NotAuthorized>
         <RedirectToLogin />
@@ -77,65 +132,37 @@
         {
             <MudLayout>
                 <MudAppBar Elevation="3" Class="primary">
-                    <MudText Typo="Typo.h5" Class="ml-3 text" Style="font-weight: bold; letter-spacing: 1px;"> Blog App</MudText>
+                    <MudText Typo="Typo.h5" Class="ml-3 text" Style="font-weight: bold; letter-spacing: 1px;">Wise_Blogs</MudText>
                     <MudSpacer />
-                    
-                    <MudButton 
-                        Variant="Variant.Outlined" 
-                        Class="mr-2 button"
-                        StartIcon="@Icons.Material.Filled.Add" 
-                        OnClick="NavigateToCreatePost">
-                        Create Post
-                    </MudButton>
-                    
-                    <MudAvatar 
-                        Class="avatar"
-                        Style="cursor: pointer;"
-                        @onclick="ToggleOpen">
-                        @GetFirstLetter(userName)
-                    </MudAvatar>
-                    
-                    <MudPopover Open="@_isOpen" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
-                        <MudPaper Elevation="0" Class="pa-4 paper" Style="min-width: 250px; position: relative;">
-                            <MudIconButton Icon="@Icons.Material.Filled.Close" 
-                                           Size="Size.Small" 
-                                           Color="Color.Error" 
-                                           Class="close-button"
-                                           OnClick="ToggleOpen" />
-                        
-                            <div class="d-flex flex-column gap-3">
-                                <div class="d-flex align-center justify-center gap-3 mb-2">
-                                    <MudAvatar Class="avatar">@GetFirstLetter(userName)</MudAvatar>
-                                    <MudText Typo="Typo.h6" Class="gold" Style="font-weight: bold;">My Profile</MudText>
-                                </div>
-                                
-                                <MudDivider Class="divider" />
-                                
-                                <div class="text-center">
-                                    <MudText Typo="Typo.caption" Class="gold">NAME</MudText>
-                                    <MudText Typo="Typo.body1" Class="text">@userName</MudText>
-                                </div>
-                                
-                                <div class="text-center">
-                                    <MudText Typo="Typo.caption" Class="gold">EMAIL</MudText>
-                                    <MudText Typo="Typo.body1" Class="text" Style="word-break: break-all;">@userEmail</MudText>
-                                </div>
-                                
-                                <MudButton 
-                                    Variant="Variant.Filled" 
-                                    Class="button mt-2"
-                                    StartIcon="@Icons.Material.Filled.Logout" 
-                                    FullWidth="true"
-                                    OnClick="HandleLogout">
-                                    LOGOUT
-                                </MudButton>
-                            </div>
-                        </MudPaper>
-                    </MudPopover>
+                    <div class="notification-container">
+                        <MudIconButton Icon="@Icons.Material.Filled.Notifications" 
+                                      Color="Color.Inherit" 
+                                      Class="notification-icon"
+                                      @onclick="NavigateToNotifications" />
+                        @if (unreadNotifications > 0)
+                        {
+                            <div class="notification-dot"></div>
+                        }
+                    </div>
                 </MudAppBar>
                 
-                <MudMainContent Style="background-color: #FFFFFF; min-height: calc(100vh - 64px);">
+                <MudMainContent Style="background-color: #FFFFFF; min-height: calc(100vh - 64px);" Class="main-content-with-nav">
                     @Body
+                  
+                    <div class="nav-bar">
+                        <div class="nav-item @(IsActive("/") ? "active-nav-item" : "")" @onclick="NavigateToHome">
+                            <MudIcon Icon="@Icons.Material.Filled.Home" Class="nav-icon" />
+                        </div>
+                        <div class="nav-item @(IsActive("/feed") ? "active-nav-item" : "")" @onclick="NavigateToFeed">
+                            <MudIcon Icon="@Icons.Material.Filled.Search" Class="nav-icon" />
+                        </div>
+                        <div class="nav-item @(IsActive("/create-post") ? "active-nav-item" : "")" @onclick="NavigateToCreatePost">
+                            <MudIcon Icon="@Icons.Material.Filled.Add" Class="nav-icon" />
+                        </div>
+                        <div class="nav-item @(IsActive("/profile") ? "active-nav-item" : "")" @onclick="NavigateToProfile">
+                            <MudIcon Icon="@Icons.Material.Filled.Person" Class="nav-icon" />
+                        </div>
+                    </div>
                 </MudMainContent>
             </MudLayout>
         }
@@ -147,54 +174,66 @@
         }
     </Authorized>
 </AuthorizeView>
+
 @code {
     private bool authChecked = false;
     private bool _isOpen = false;
     private string userName = string.Empty;
     private string userId = string.Empty;
     private string userEmail = string.Empty;
-    
+    private int unreadNotifications = 0;
+
     protected override async Task OnInitializedAsync()
     {
-        try {
-            // Retrieve token from local storage
-            var token = await LocalStorage.GetItemAsStringAsync("authToken");
+        try
+        {
+            var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
             
-            if (!string.IsNullOrEmpty(token)) {
-                // Get user info
+            if (!string.IsNullOrEmpty(token))
+            {
                 userName = await AuthService.GetUserNameAsync();
                 userId = await AuthService.GetUserIdAsync();
                 
-                // Extract email from token claims
                 var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
                 var jwtToken = handler.ReadJwtToken(token);
                 userEmail = jwtToken.Claims.FirstOrDefault(c => c.Type == "email")?.Value ?? string.Empty;
                 
-                // Check if the token is valid
                 var authResult = await AuthService.CheckAuth(token);
-                if (authResult == null) {
+                if (authResult == null)
+                {
                     Navigation.NavigateTo("/login");
-                    return; // Exit early if authentication fails
+                    return;
                 }
-            } else {
+
+                await BlogService.InitializeSignalRAsync();
+                BlogService.OnNotificationReceived += HandleNotification;
+            }
+            else
+            {
                 Navigation.NavigateTo("/login");
-                return; // Exit early if no token found
+                return;
             }
         }
-        catch (Exception ex) {
+        catch (Exception ex)
+        {
             Console.WriteLine($"Authentication error: {ex.Message}");
             Navigation.NavigateTo("/login");
-            return; // Exit early if an exception occurs
+            return;
         }
-        finally {
+        finally
+        {
             authChecked = true;
-            StateHasChanged(); // Force UI update
+            StateHasChanged();
         }
     }
-    
-    private void ToggleOpen()
+
+    private void HandleNotification(string message)
     {
-        _isOpen = !_isOpen;
+        InvokeAsync(() =>
+        {
+            unreadNotifications++;
+            StateHasChanged();
+        });
     }
     
     private string GetFirstLetter(string name)
@@ -202,23 +241,42 @@
         return !string.IsNullOrEmpty(name) ? name[0].ToString().ToUpper() : "?";
     }
     
+    private void NavigateToHome()
+    {
+        Navigation.NavigateTo("/");
+    }
+    
+    private void NavigateToFeed()
+    {
+        Navigation.NavigateTo("/feed");
+    }
+    
+    private void NavigateToProfile()
+    {
+        Navigation.NavigateTo("/profile");
+    }
+    
     private void NavigateToCreatePost()
     {
         Navigation.NavigateTo("/create-post");
     }
     
+    private void NavigateToNotifications()
+    {
+        unreadNotifications = 0;
+        Navigation.NavigateTo("/notifications");
+    }
+    
     private async Task HandleLogout()
     {
-        // Close the popover
-        _isOpen = false;
-        
-        // Clear local storage
         await LocalStorage.RemoveItemAsync("authToken");
-        
-        // Call logout service method
         await AuthService.Logout();
-        
-        // Navigate to login page
         Navigation.NavigateTo("/login", forceLoad: true);
+    }
+    
+    private bool IsActive(string href)
+    {
+        var relativePath = Navigation.ToBaseRelativePath(Navigation.Uri).ToLower();
+        return href == "/" ? relativePath == "" : relativePath.StartsWith(href.TrimStart('/').ToLower());
     }
 }

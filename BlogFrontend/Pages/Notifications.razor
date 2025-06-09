@@ -1,0 +1,158 @@
+@page "/notifications"
+@using BlogFrontend.Services
+@inject NotificationService NotificationService
+@implements IDisposable
+
+<div class="notification-page">
+    <h3 class="notification-header">Notifications</h3>
+
+    @if (isError)
+    {
+        <div class="alert alert-danger">
+            <i class="fas fa-exclamation-circle"></i>
+            @errorMessage
+        </div>
+    }
+
+    @if (NotificationService.Notifications.Any())
+    {
+        <div class="notification-actions">
+            <button class="btn-clear-all" @onclick="ClearAllNotifications">
+                <i class="fas fa-trash"></i> Clear all notifications
+            </button>
+        </div>
+
+        <ul class="notification-list">
+            @foreach (var notification in NotificationService.Notifications.OrderByDescending(n => n.Timestamp))
+            {
+                <li class="notification-item">
+                    <div class="notification-content">
+                        <div class="notification-message">@notification.Message</div>
+                        <div class="notification-time">@notification.Timestamp.ToString("MMM dd, HH:mm")</div>
+                    </div>
+                </li>
+            }
+        </ul>
+    }
+    else
+    {
+        <div class="empty-state">
+            <i class="far fa-bell-slash"></i>
+            <p>No notifications yet.</p>
+        </div>
+    }
+</div>
+
+<style>
+    .notification-page {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    .notification-header {
+        font-size: 24px;
+        margin-bottom: 20px;
+        color: #333;
+        border-bottom: 2px solid #f44336;
+        padding-bottom: 10px;
+    }
+
+    .alert-danger {
+        background-color: #ffebee;
+        color: #b71c1c;
+        padding: 15px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+    }
+
+    .notification-actions {
+        display: flex;
+        justify-content: flex-end;
+        margin-bottom: 15px;
+    }
+
+    .btn-clear-all {
+        background-color: transparent;
+        color: #f44336;
+        border: 1px solid #f44336;
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: all 0.2s ease;
+    }
+
+        .btn-clear-all:hover {
+            background-color: #f44336;
+            color: white;
+        }
+
+    .notification-list {
+        list-style-type: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .notification-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 15px;
+        border-radius: 4px;
+        margin-bottom: 10px;
+        background-color: #f5f5f5;
+        border-left: 4px solid #f44336;
+        transition: all 0.2s ease;
+    }
+
+    .notification-content {
+        flex: 1;
+    }
+
+    .notification-message {
+        margin-bottom: 5px;
+        font-size: 15px;
+    }
+
+    .notification-time {
+        font-size: 12px;
+        color: #757575;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 50px 0;
+        color: #9e9e9e;
+    }
+
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+</style>
+
+@code {
+    private bool isError = false;
+    private string errorMessage = "";
+
+    protected override void OnInitialized()
+    {
+        NotificationService.OnNotificationsChanged += UpdateUI;
+    }
+
+    private void UpdateUI()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void ClearAllNotifications()
+    {
+        NotificationService.ClearNotifications();
+    }
+
+    public void Dispose()
+    {
+        NotificationService.OnNotificationsChanged -= UpdateUI;
+    }
+}

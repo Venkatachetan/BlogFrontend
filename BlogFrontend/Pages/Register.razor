@@ -5,70 +5,115 @@
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
 
-<div class="d-flex justify-center align-center" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: #e91e63; width: 100vw; height: 100vh;">
-    <div class="text-center" style="max-width: 500px; width: 100%; padding: 40px 20px;">
+<div class="d-flex justify-center align-center" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(135deg, #6559ae, #e91e63); width: 100vw; height: 100vh;">
+    <div class="text-center" style="max-width: 400px; width: 100%; padding: 40px 20px; background-color: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
         <div class="mb-6">
-            <MudIcon Icon="@Icons.Material.Filled.Article" Style="color: white; font-size: 40px;" Class="mb-2" />
-            <MudText Typo="Typo.h5" Class="font-weight-bold" Style="color: white;">Blog Application</MudText>
+            <MudIcon Icon="@Icons.Material.Filled.Article" Style="color: #e91e63; font-size: 40px;" Class="mb-2" />
+            <MudText Typo="Typo.h5" Class="font-weight-bold" Style="color: #333;">Blog Application</MudText>
         </div>
 
-        <MudText Typo="Typo.h5" Class="mb-3" Style="color: white;">Register</MudText>
+        @if (!isOtpStep)
+        {
+            <MudText Typo="Typo.h5" Class="mb-4" Style="color: #333;">Register</MudText>
 
-        <div class="d-flex justify-center mb-2">
-            <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.8);">Already have an account?</MudText>
+            <MudForm Class="mt-4">
+                <div class="px-4">
+                    <div class="mb-4">
+                        <MudText Typo="Typo.caption" Class="d-block text-left mb-1" Style="color: #666;">Email</MudText>
+                        <MudTextField @bind-Value="email"
+                                      Placeholder="Email"
+                                      Variant="Variant.Outlined"
+                                      Label=""
+                                      FullWidth="true" />
+                    </div>
+
+                    <div class="mb-4">
+                        <MudText Typo="Typo.caption" Class="d-block text-left mb-1" Style="color: #666;">Name</MudText>
+                        <MudTextField @bind-Value="name"
+                                      Placeholder="Name"
+                                      Variant="Variant.Outlined"
+                                      Label=""
+                                      FullWidth="true" />
+                    </div>
+
+                    <div class="mb-4">
+                        <MudText Typo="Typo.caption" Class="d-block text-left mb-1" Style="color: #666;">Password</MudText>
+                        <MudTextField @bind-Value="password"
+                                      Placeholder="Password"
+                                      Variant="Variant.Outlined"
+                                      Label=""
+                                      InputType="InputType.Password"
+                                      FullWidth="true" />
+                    </div>
+
+                    <div class="d-flex justify-center mt-6">
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   Style="border-radius: 4px; width: 100%;"
+                                   OnClick="Submit"
+                                   Size="Size.Large"
+                                   Disabled="isLoading">
+                            @if (isLoading)
+                            {
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                                <span>Signing up...</span>
+                            }
+                            else
+                            {
+                                <span>Sign Up</span>
+                            }
+                        </MudButton>
+                    </div>
+                </div>
+            </MudForm>
+        }
+        else
+        {
+            <MudText Typo="Typo.h5" Class="mb-4" Style="color: #333;">Verify OTP</MudText>
+            <MudText Typo="Typo.body2" Class="mb-4" Style="color: #666;">An OTP has been sent to your email (@email). Please enter it below to verify your account.</MudText>
+
+            <MudForm Class="mt-4">
+                <div class="px-4">
+                    <div class="mb-4">
+                        <MudText Typo="Typo.caption" Class="d-block text-left mb-1" Style="color: #666;">OTP</MudText>
+                        <MudTextField @bind-Value="otp"
+                                      Placeholder="Enter OTP"
+                                      Variant="Variant.Outlined"
+                                      Label=""
+                                      FullWidth="true" />
+                    </div>
+
+                    <div class="d-flex justify-center mt-6">
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   Style="border-radius: 4px; width: 100%;"
+                                   OnClick="VerifyOtp"
+                                   Size="Size.Large"
+                                   Disabled="isLoading">
+                            @if (isLoading)
+                            {
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                                <span>Verifying...</span>
+                            }
+                            else
+                            {
+                                <span>Verify</span>
+                            }
+                        </MudButton>
+                    </div>
+                </div>
+            </MudForm>
+        }
+
+        <div class="d-flex justify-center mt-6 pt-4" style="border-top: 1px solid #eee;">
+            <MudText Typo="Typo.body2" Style="color: #666;">Have an account?</MudText>
             <MudButton Variant="Variant.Text"
-                       Color="Color.Default"
+                       Color="Color.Primary"
                        OnClick="@(() => Navigation.NavigateTo("/login"))"
-                       Style="color: #3f51b5; padding: 0px 6px; min-width: 0; font-weight: 500;">
-                Login
+                       Style="padding: 0px 6px; min-width: 0; font-weight: 500;">
+                Log in
             </MudButton>
         </div>
-
-        <MudForm Class="mt-4">
-            @if (!string.IsNullOrEmpty(message))
-            {
-                <MudAlert Severity="@severity" Variant="Variant.Filled" Dense="true" Class="mb-4">
-                    @message
-                </MudAlert>
-            }
-
-            <MudTextField @bind-Value="email"
-                          Label="Email"
-                          Variant="Variant.Outlined"
-                          FullWidth="true"
-                          Class="mb-3 bg-white rounded-lg" />
-
-            <MudTextField @bind-Value="name"
-                          Label="Name"
-                          Variant="Variant.Outlined"
-                          FullWidth="true"
-                          Class="mb-3 bg-white rounded-lg" />
-
-            <MudTextField @bind-Value="password"
-                          Label="Password"
-                          Variant="Variant.Outlined"
-                          InputType="InputType.Password"
-                          FullWidth="true"
-                          Class="mb-4 bg-white rounded-lg" />
-
-            <div class="d-flex justify-center mt-4">
-                <MudButton Variant="Variant.Filled"
-                           Style="background-color: #3f51b5; color: white; border-radius: 4px; width: 150px;"
-                           OnClick="Submit"
-                           Size="Size.Large"
-                           Disabled="isLoading">
-                    @if (isLoading)
-                    {
-                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-                        <span>Registering...</span>
-                    }
-                    else
-                    {
-                        <span>Register</span>
-                    }
-                </MudButton>
-            </div>
-        </MudForm>
     </div>
 </div>
 
@@ -76,35 +121,52 @@
     private string email = "";
     private string name = "";
     private string password = "";
-    private string message = "";
-    private Severity severity = Severity.Info;
+    private string otp = "";
     private bool isLoading = false;
+    private bool isOtpStep = false;
 
     private async Task Submit()
     {
         try
         {
             isLoading = true;
-            message = "";
 
             var response = await AuthService.Register(email, password, name);
-            if (response != null)
+
+            Console.WriteLine($"Response: {response?.Message}");
+
+            if (response != null && (response.Message.Contains("OTP sent") || response.Message.Contains("Registration successful")))
             {
-                severity = Severity.Success;
-                message = response.Message;
-                await Task.Delay(2000); // Show success message briefly
-                Navigation.NavigateTo("/login");
-            }
-            else
-            {
-                severity = Severity.Error;
-                message = "Registration failed";
+                isOtpStep = true;
+                StateHasChanged();
             }
         }
         catch (Exception ex)
         {
-            severity = Severity.Error;
-            message = $"An error occurred: {ex.Message}";
+            Console.WriteLine($"An error occurred: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task VerifyOtp()
+    {
+        try
+        {
+            isLoading = true;
+
+            var response = await AuthService.VerifyOtp(email, otp);
+            if (response != null)
+            {
+                Navigation.NavigateTo("/login");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"An error occurred: {ex.Message}");
         }
         finally
         {

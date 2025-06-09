@@ -1,0 +1,738 @@
+﻿@page "/feed"
+@using MudBlazor
+@using BlogFrontend.Models
+@using BlogFrontend.Services
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.JSInterop
+@using MudBlazor.Utilities
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject NavigationManager NavigationManager
+@inject IBlogService BlogService
+@inject IAuthService AuthService
+@inject IJSRuntime JSRuntime
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-4 mb-16">
+    <style>
+        .like-button {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+
+            .like-button:hover {
+                opacity: 0.8;
+            }
+    </style>
+
+    <!-- Search bar -->
+    <MudPaper Elevation="2" Class="pa-2 mb-4">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudTextField @bind-Value="searchQuery"
+                          Label="Search posts and users"
+                          Variant="Variant.Outlined"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          FullWidth="false"
+                          Immediate="true"
+                          Clearable="true"
+                          Style="flex-grow: 1;"
+                          OnKeyUp="@SearchKeyPress" />
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Search"
+                       OnClick="SearchButtonClick"
+                       Style="height: 56px;">Search</MudButton>
+        </MudStack>
+    </MudPaper>
+
+    @if (isLoading)
+    {
+        <div class="d-flex justify-center my-8">
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+        </div>
+    }
+    else
+    {
+        @switch (currentView)
+        {
+            case ViewType.Posts:
+                @if (!posts.Any() && !users.Any() && hasSearched)
+                {
+                    <MudPaper Elevation="0" Class="py-8 text-center">
+                        <MudIcon Icon="@Icons.Material.Filled.SearchOff" Size="Size.Large" Class="mb-4" />
+                        <MudText Typo="Typo.h6">No posts or users found</MudText>
+                        <MudText Typo="Typo.body2" Class="mt-2">Try a different search term</MudText>
+                    </MudPaper>
+                }
+                else
+                {
+                    <!-- Users section -->
+                    @if (users.Any())
+                    {
+                        <MudText Typo="Typo.h6" Class="mb-2">Users</MudText>
+                        <MudPaper Elevation="1" Class="pa-3 mb-4">
+                            @foreach (var user in users)
+                            {
+                                <div class="d-flex align-center justify-space-between mb-2">
+                                    <div class="d-flex align-center" Style="cursor: pointer;" @onclick="@(() => NavigateToUserProfile(user.UserId))">
+                                        <MudAvatar Size="Size.Small" Style="background-color: #000000; color: #D4AF37; border: 1px solid #D4AF37;">
+                                            @(user.Username?.Length > 0 ? user.Username[0].ToString().ToUpper() : "U")
+                                        </MudAvatar>
+                                        <MudText Typo="Typo.body2" Class="ml-2">@user.Username</MudText>
+                                    </div>
+                                    @if (user.UserId != currentUserId)
+                                    {
+                                        bool isFollowing = followingIds.Contains(user.UserId);
+                                        <MudButton Variant="Variant.Outlined"
+                                                   Size="Size.Small"
+                                                   Color="@(isFollowing ? Color.Default : Color.Primary)"
+                                                   OnClick="@(() => ToggleFollow(user.UserId, isFollowing))">
+                                            @(isFollowing ? "Unfollow" : "Follow")
+                                        </MudButton>
+                                    }
+                                </div>
+                            }
+                        </MudPaper>
+                    }
+
+                    @if (filteredPosts.Any())
+                    {
+                        <MudText Typo="Typo.h6" Class="mb-2">Posts</MudText>
+                        <MudGrid>
+                            @foreach (var post in filteredPosts)
+                            {
+                                <MudItem xs="12" sm="6" md="4" @onclick="@(() => NavigateToPost(post.Id))" Style="cursor: pointer;">
+                                    <MudCard Elevation="2" Class="rounded-lg overflow-hidden h-100">
+                                        @if (!string.IsNullOrEmpty(post.ImageBase64))
+                                        {
+                                            <MudCardMedia Image="@($"data:image/jpeg;base64,{post.ImageBase64}")" Height="200" />
+                                        }
+                                        else
+                                        {
+                                            <MudCardMedia Style="height: 200px; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center;">
+                                                <MudIcon Icon="@Icons.Material.Filled.Image" Size="Size.Large" Color="Color.Default" />
+                                            </MudCardMedia>
+                                        }
+                                        <MudCardContent>
+                                            <div class="d-flex align-center mb-2">
+                                                <MudAvatar Size="Size.Small" Style="background-color: #000000; color: #D4AF37; border: 1px solid #D4AF37;">
+                                                    @(post.UserName?.Length > 0 ? post.UserName[0].ToString().ToUpper() : "U")
+                                                </MudAvatar>
+                                                <div @onclick="@(() => NavigationManager.NavigateTo($"/user/{post.UserId}"))" @onclick:stopPropagation="true" Style="cursor: pointer;">
+                                                    <MudText Typo="Typo.body1" Class="ml-2 font-weight-bold">@(post.UserName ?? "Unknown")</MudText>
+                                                </div>
+                                            </div>
+                                            <MudText Typo="Typo.h6" Class="text-truncate">@(post.Title ?? "Untitled")</MudText>
+                                            <MudText Typo="Typo.body2" Class="text-truncate">
+                                                @StripHtmlTags(post.Content)
+                                            </MudText>
+
+                                            @if (post.Tags != null && post.Tags.Any())
+                                            {
+                                                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Class="mt-2">@post.Tags.First()</MudChip>
+                                            }
+                                        </MudCardContent>
+                                        <MudCardActions>
+                                            @if (post.LikedBy != null && post.LikedBy.Any(l => l.UserId == currentUserId))
+                                            {
+                                                <div class="like-button" @onclick="() => UnlikePost(post.Id)" @onclick:stopPropagation>
+                                                    <MudIcon Icon="@Icons.Material.Filled.Favorite" Color="Color.Error" Size="Size.Small" />
+                                                    <MudText Typo="Typo.body2" Class="ml-1 mr-4">@post.Likes</MudText>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div class="like-button" @onclick="() => LikePost(post.Id)" @onclick:stopPropagation>
+                                                    <MudIcon Icon="@Icons.Material.Outlined.FavoriteBorder" Size="Size.Small" Color="Color.Default" />
+                                                    <MudText Typo="Typo.body2" Class="ml-1 mr-4">@post.Likes</MudText>
+                                                </div>
+                                            }
+
+                                            <MudIcon Icon="@Icons.Material.Filled.Comment" Size="Size.Small" Color="Color.Default" />
+                                            <MudText Typo="Typo.body2" Class="ml-1">@(post.Comments?.Count ?? 0)</MudText>
+
+                                            <MudSpacer />
+
+                                            <MudText Typo="Typo.caption" Class="text-disabled">
+                                                @FormatDate(post.CreatedAt)
+                                            </MudText>
+                                        </MudCardActions>
+                                    </MudCard>
+                                </MudItem>
+                            }
+                        </MudGrid>
+                    }
+                    else if (hasSearched && !users.Any())
+                    {
+                        <MudPaper Elevation="0" Class="py-8 text-center">
+                            <MudIcon Icon="@Icons.Material.Filled.SearchOff" Size="Size.Large" Class="mb-4" />
+                            <MudText Typo="Typo.h6">No posts found</MudText>
+                            <MudText Typo="Typo.body2" Class="mt-2">Try a different search term</MudText>
+                        </MudPaper>
+                    }
+                }
+                <!-- Load more button -->
+                @if (hasMorePosts)
+                {
+                    <div class="d-flex justify-center mt-4 mb-8">
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   OnClick="LoadMorePosts"
+                                   Disabled="isLoadingMore">
+                            @if (isLoadingMore)
+                            {
+                                <MudProgressCircular Class="mr-2" Size="Size.Small" Indeterminate="true" />
+                                <span>Loading...</span>
+                            }
+                            else
+                            {
+                                <span>Load More</span>
+                            }
+                        </MudButton>
+                    </div>
+                }
+                break;
+
+            case ViewType.Followers:
+                @if (!followers.Any())
+                {
+                    <MudPaper Elevation="0" Class="py-8 text-center">
+                        <MudIcon Icon="@Icons.Material.Filled.GroupOff" Size="Size.Large" Class="mb-4" />
+                        <MudText Typo="Typo.h6">No followers</MudText>
+                    </MudPaper>
+                }
+                else
+                {
+                    <MudText Typo="Typo.h6" Class="mb-2">Followers</MudText>
+                    <MudPaper Elevation="1" Class="pa-3 mb-4">
+                        @foreach (var user in followers)
+                        {
+                            <div class="d-flex align-center justify-space-between mb-2">
+                                <div class="d-flex align-center" Style="cursor: pointer;" @onclick="@(() => NavigateToUserProfile(user.UserId))">
+                                    @if (!string.IsNullOrEmpty(user.ProfilePictureBase64))
+                                    {
+                                        <MudAvatar Image="@($"data:image/jpeg;base64,{user.ProfilePictureBase64}")" Size="Size.Small" />
+                                    }
+                                    else
+                                    {
+                                        <MudAvatar Size="Size.Small" Style="background-color: #000000; color: #D4AF37; border: 1px solid #D4AF37;">
+                                            @(user.Username?.Length > 0 ? user.Username[0].ToString().ToUpper() : "U")
+                                        </MudAvatar>
+                                    }
+                                    <MudText Typo="Typo.body2" Class="ml-2">@user.Username</MudText>
+                                </div>
+                                @if (user.UserId != currentUserId)
+                                {
+                                    bool isFollowing = followingIds.Contains(user.UserId);
+                                    <MudButton Variant="Variant.Outlined"
+                                               Size="Size.Small"
+                                               Color="@(isFollowing ? Color.Default : Color.Primary)"
+                                               OnClick="@(() => ToggleFollow(user.UserId, isFollowing))">
+                                        @(isFollowing ? "Unfollow" : "Follow")
+                                    </MudButton>
+                                }
+                            </div>
+                        }
+                    </MudPaper>
+                }
+                break;
+
+            case ViewType.Following:
+                @if (!following.Any())
+                {
+                    <MudPaper Elevation="0" Class="py-8 text-center">
+                        <MudIcon Icon="@Icons.Material.Filled.GroupOff" Size="Size.Large" Class="mb-4" />
+                        <MudText Typo="Typo.h6">Not following anyone</MudText>
+                    </MudPaper>
+                }
+                else
+                {
+                    <MudText Typo="Typo.h6" Class="mb-2">Following</MudText>
+                    <MudPaper Elevation="1" Class="pa-3 mb-4">
+                        @foreach (var user in following)
+                        {
+                            <div class="d-flex align-center justify-space-between mb-2">
+                                <div class="d-flex align-center" Style="cursor: pointer;" @onclick="@(() => NavigateToUserProfile(user.UserId))">
+                                    @if (!string.IsNullOrEmpty(user.ProfilePictureBase64))
+                                    {
+                                        <MudAvatar Image="@($"data:image/jpeg;base64,{user.ProfilePictureBase64}")" Size="Size.Small" />
+                                    }
+                                    else
+                                    {
+                                        <MudAvatar Size="Size.Small" Style="background-color: #000000; color: #D4AF37; border: 1px solid #D4AF37;">
+                                            @(user.Username?.Length > 0 ? user.Username[0].ToString().ToUpper() : "U")
+                                        </MudAvatar>
+                                    }
+                                    <MudText Typo="Typo.body2" Class="ml-2">@user.Username</MudText>
+                                </div>
+                                @if (user.UserId != currentUserId)
+                                {
+                                    bool isFollowing = followingIds.Contains(user.UserId);
+                                    <MudButton Variant="Variant.Outlined"
+                                               Size="Size.Small"
+                                               Color="@(isFollowing ? Color.Default : Color.Primary)"
+                                               OnClick="@(() => ToggleFollow(user.UserId, isFollowing))">
+                                        @(isFollowing ? "Unfollow" : "Follow")
+                                    </MudButton>
+                                }
+                            </div>
+                        }
+                    </MudPaper>
+                }
+                break;
+        }
+    }
+</MudContainer>
+
+@code {
+    private class LoadDataArgs
+    {
+        public int Page { get; set; }
+        public int PageSize { get; set; }
+    }
+
+    private enum ViewType { Posts, Followers, Following }
+
+    private List<Models.Post> posts = new();
+    private List<Models.Post> filteredPosts = new();
+    private List<User> users = new();
+    private List<User> followers = new();
+    private List<User> following = new();
+    private List<string> followingIds = new();
+    private string currentUserId;
+    private string searchQuery = "";
+    private bool isLoading = true;
+    private bool isLoadingMore = false;
+    private bool hasSearched = false;
+    private bool hasMorePosts = true;
+    private int currentPage = 1;
+    private const int PageSize = 10;
+    private long totalPosts = 0;
+    private ViewType currentView = ViewType.Posts;
+    private List<Models.SearchResult> searchResults = new();
+    private bool showSearchResults = false;
+    private bool isFollowingView = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            currentUserId = await AuthService.GetCurrentUserIdAsync();
+            Console.WriteLine($"Current user ID: {currentUserId}");
+
+            followingIds = await BlogService.GetFollowingIdsAsync();
+            Console.WriteLine($"Following IDs count: {followingIds.Count}");
+
+            await LoadInitialPosts();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in OnInitializedAsync: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
+            Snackbar.Add("Error loading feed", Severity.Error);
+            posts = new List<Models.Post>();
+            filteredPosts = new List<Models.Post>();
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadInitialPosts()
+    {
+        try
+        {
+            Console.WriteLine("Starting to load initial posts...");
+            var (loadedPosts, total) = await BlogService.GetAllPostsPaginatedAsync(1, PageSize);
+            Console.WriteLine($"Received {loadedPosts?.Count ?? 0} posts from service");
+
+            if (loadedPosts == null)
+            {
+                Console.WriteLine("Warning: loadedPosts is null");
+                posts = new List<Models.Post>();
+                filteredPosts = new List<Models.Post>();
+                return;
+            }
+
+            posts = loadedPosts.Where(p => p != null).ToList();
+            Console.WriteLine($"Successfully processed {posts.Count} posts");
+            filteredPosts = posts;
+            totalPosts = total;
+            hasMorePosts = posts.Count < total;
+            Console.WriteLine($"Total posts: {total}, Has more posts: {hasMorePosts}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in LoadInitialPosts: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
+            if (ex.InnerException != null)
+            {
+                Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
+                Console.WriteLine($"Inner exception stack trace: {ex.InnerException.StackTrace}");
+            }
+            Snackbar.Add($"Error loading posts: {ex.Message}", Severity.Error);
+            posts = new List<Models.Post>();
+            filteredPosts = new List<Models.Post>();
+        }
+    }
+
+    private async Task LoadMorePosts()
+    {
+        if (isLoadingMore) return;
+
+        try
+        {
+            isLoadingMore = true;
+            currentPage++;
+            var (newPosts, total) = await BlogService.GetAllPostsPaginatedAsync(currentPage, PageSize);
+            
+            if (newPosts.Any())
+            {
+                posts.AddRange(newPosts);
+                filteredPosts = posts;
+                totalPosts = total;
+                hasMorePosts = posts.Count < total;
+            }
+            else
+            {
+                hasMorePosts = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Error loading more posts", Severity.Error);
+        }
+        finally
+        {
+            isLoadingMore = false;
+        }
+    }
+
+    private async Task SearchButtonClick()
+    {
+        if (string.IsNullOrWhiteSpace(searchQuery)) return;
+
+        try
+        {
+            isLoading = true;
+            hasSearched = true;
+            filteredPosts = new List<Models.Post>(); // Clear previous posts
+            users = new List<User>(); // Clear previous users
+            Console.WriteLine($"Starting combined search with query: {searchQuery}");
+
+            // Perform combined semantic search
+            var combinedResults = await BlogService.PerformCombinedSearchAsync(searchQuery);
+            Console.WriteLine($"Combined search returned. Users count: {combinedResults?.Users?.Count ?? 0}, Posts count: {combinedResults?.Posts?.Count ?? 0}");
+
+            // Process user results
+            if (combinedResults?.Users != null)
+            {
+                 users = combinedResults.Users;
+                 Console.WriteLine($"Assigned {users.Count} users from combined search results");
+                 if (users.Any())
+                 {
+                     Console.WriteLine("First assigned user username: " + users.First().Username);
+                 }
+            }
+            else
+            {
+                 Console.WriteLine("No users returned in combined search results.");
+            }
+           
+
+            // Process post results
+            if (combinedResults?.Posts != null && combinedResults.Posts.Any())
+            {
+                Console.WriteLine("Combined results contain posts. Proceeding to fetch full post details...");
+                // Get all posts to filter based on search results
+                // We need to fetch posts because SearchResult only has ID, Title, Content snippet, etc., not full Post properties
+                var (allPosts, _) = await BlogService.GetAllPostsPaginatedAsync(1, 1000); // Fetch up to 1000 posts to find matches
+                Console.WriteLine($"Retrieved {allPosts?.Count ?? 0} posts for filtering search results");
+
+                if (allPosts != null && allPosts.Any())
+                {
+                    // Extract UUIDs from the JSON strings in post IDs
+                    var postIds = combinedResults.Posts.Select(r => {
+                        try {
+                            // Remove the outer quotes and parse the JSON
+                            var jsonStr = r.Id.Trim('"');
+                            var jsonObj = System.Text.Json.JsonDocument.Parse(jsonStr);
+                            return jsonObj.RootElement.GetProperty("uuid").GetString();
+                        }
+                        catch {
+                            Console.WriteLine($"Failed to parse post ID: {r.Id}");
+                            return null;
+                        }
+                    })
+                    .Where(id => id != null)
+                    .ToList();
+
+                    Console.WriteLine($"Extracted UUIDs from post IDs: {string.Join(", ", postIds)}");
+
+                    filteredPosts = allPosts
+                        .Where(p => postIds.Contains(p.Id))
+                        .ToList();
+
+                    Console.WriteLine($"Filtered posts count based on combined search results: {filteredPosts.Count}");
+                }
+                else
+                {
+                    Console.WriteLine("GetAllPostsPaginatedAsync returned no posts.");
+                }
+            }
+            else
+            {
+                Console.WriteLine("No post search results found in combined results.");
+                filteredPosts = new List<Models.Post>(); // Ensure posts list is empty if no post results
+            }
+
+            // Update UI
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error during combined search: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
+            Snackbar.Add("Error performing search", Severity.Error);
+            filteredPosts = new List<Models.Post>(); // Clear posts on error
+            users = new List<User>(); // Clear users on error
+            StateHasChanged(); // Update UI on error
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SearchKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SearchButtonClick();
+        }
+    }
+
+    private async Task ToggleFollow(string userId, bool isFollowing)
+    {
+        try
+        {
+            if (isFollowing)
+            {
+                await BlogService.UnfollowUserAsync(userId);
+                followingIds.Remove(userId);
+                if (currentView == ViewType.Following)
+                {
+                    following.RemoveAll(u => u.UserId == userId);
+                }
+                Snackbar.Add($"Unfollowed user.", Severity.Success);
+            }
+            else
+            {
+                await BlogService.FollowUserAsync(userId);
+                followingIds.Add(userId);
+                if (currentView == ViewType.Following)
+                {
+                    var user = await BlogService.SearchUsersAsync(userId);
+                    if (user.Any())
+                    {
+                        following.Add(user.First(u => u.UserId == userId));
+                    }
+                }
+                Snackbar.Add($"Followed user.", Severity.Success);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to {(isFollowing ? "unfollow" : "follow")} user: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task LikePost(string postId)
+    {
+        try
+        {
+            var updatedPost = await BlogService.LikePostAsync(postId);
+            if (updatedPost != null)
+            {
+                var post = posts.FirstOrDefault(p => p.Id == postId);
+                if (post != null)
+                {
+                    // Update both Likes and LikedBy
+                    post.Likes = updatedPost.Likes;
+                    post.LikedBy = updatedPost.LikedBy ?? new List<BlogFrontend.Models.Like>();
+                    
+                    // Ensure the current user is in LikedBy
+                    if (!post.LikedBy.Any(l => l.UserId == currentUserId))
+                    {
+                        post.LikedBy.Add(new Like { UserId = currentUserId });
+                    }
+                    
+                    StateHasChanged();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error liking post: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task UnlikePost(string postId)
+    {
+        try
+        {
+            var updatedPost = await BlogService.UnlikePostAsync(postId);
+            if (updatedPost != null)
+            {
+                var post = posts.FirstOrDefault(p => p.Id == postId);
+                if (post != null)
+                {
+                    // Update Likes count from backend response
+                    post.Likes = updatedPost.Likes;
+                    
+                    // Remove current user from LikedBy list
+                    if (post.LikedBy != null)
+                    {
+                        post.LikedBy = post.LikedBy.Where(l => l.UserId != currentUserId).ToList();
+                    }
+                    
+                    StateHasChanged();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error unliking post: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void NavigateToPost(string postId)
+    {
+        NavigationManager.NavigateTo($"/post/{postId}");
+    }
+
+    private void NavigateToUserProfile(string userId)
+    {
+        NavigationManager.NavigateTo($"/user/{userId}");
+    }
+
+    private string FormatDate(DateTime date)
+    {
+        DateTime utcDate = date.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(date, DateTimeKind.Utc)
+            : date.ToUniversalTime();
+
+        TimeSpan timeSince = DateTime.UtcNow - utcDate;
+
+        if (timeSince.TotalDays > 30)
+            return utcDate.ToString("MMM d, yyyy");
+        if (timeSince.TotalDays > 1)
+            return $"{(int)timeSince.TotalDays}d ago";
+        if (timeSince.TotalHours > 1)
+            return $"{(int)timeSince.TotalHours}h ago";
+        if (timeSince.TotalMinutes > 1)
+            return $"{(int)timeSince.TotalMinutes}m ago";
+
+        return "Just now";
+    }
+
+    private string StripHtmlTags(string content)
+    {
+        if (string.IsNullOrEmpty(content))
+            return "No content";
+
+        string cleanedContent = System.Text.RegularExpressions.Regex.Replace(content, "<[^>]+>", "");
+
+        cleanedContent = System.Text.RegularExpressions.Regex.Replace(cleanedContent, "[↑↓←→]", "");
+
+        if (cleanedContent.Length > 100)
+            return cleanedContent.Substring(0, 100) + "...";
+
+        return cleanedContent;
+    }
+
+    private async Task SetView(ViewType view)
+    {
+        if (currentView != view)
+        {
+            currentView = view;
+            isLoading = true;
+            posts.Clear();
+            users.Clear();
+            followers.Clear();
+            following.Clear();
+            currentPage = 1;
+            hasMorePosts = true;
+            hasSearched = false;
+            await LoadDataAsync(new LoadDataArgs());
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadDataAsync(LoadDataArgs args)
+    {
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            switch (currentView)
+            {
+                case ViewType.Posts:
+                    if (!string.IsNullOrWhiteSpace(searchQuery))
+                    {
+                        await SearchButtonClick();
+                    }
+                    else if (hasMorePosts)
+                    {
+                        currentPage++;
+                        var (newPosts, total) = await BlogService.GetAllPostsPaginatedAsync(currentPage, PageSize);
+                        if (newPosts.Any())
+                        {
+                            posts.AddRange(newPosts);
+                            filteredPosts = posts;
+                            totalPosts = total;
+                            hasMorePosts = posts.Count < total;
+                        }
+                        else
+                        {
+                            hasMorePosts = false;
+                        }
+                    }
+                    break;
+
+                case ViewType.Followers:
+                    followers = await BlogService.GetFollowersAsync(currentUserId);
+                    break;
+
+                case ViewType.Following:
+                    following = await BlogService.GetFollowingAsync(currentUserId);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in LoadDataAsync: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
+            Snackbar.Add("Error loading data", Severity.Error);
+            posts = new List<Models.Post>();
+            filteredPosts = new List<Models.Post>();
+            followers = new List<User>();
+            following = new List<User>();
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+}

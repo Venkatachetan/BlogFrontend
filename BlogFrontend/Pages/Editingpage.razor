@@ -169,7 +169,7 @@
             {
                 if (post.UserId != userId)
                 {
-                    Snackbar.Add("You can only edit your own posts", Severity.Error);
+                    Console.WriteLine("You can only edit your own posts");
                     NavigationManager.NavigateTo($"/post/{PostId}");
                     return;
                 }
@@ -179,7 +179,7 @@
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Error loading post: {ex.Message}", Severity.Error);
+            Console.WriteLine($"Error loading post: {ex.Message}");
         }
         finally
         {
@@ -192,7 +192,6 @@
     {
         if (firstRender)
         {
-            // Initialize setEditorContent JavaScript function
             await JSRuntime.InvokeVoidAsync("eval", @"
                 window.setEditorContent = function(element, content) {
                     if (element) {
@@ -202,7 +201,6 @@
             ");
         }
 
-        // Load the content after the editor is rendered and only once
         if (!contentLoaded && post != null && !string.IsNullOrEmpty(post.Content) && editorRef.Id != null)
         {
             try
@@ -214,7 +212,7 @@
             }
             catch (Exception ex)
             {
-                Snackbar.Add($"Error loading content: {ex.Message}", Severity.Warning);
+                Console.WriteLine($"Error loading content: {ex.Message}");
             }
         }
     }
@@ -286,10 +284,9 @@
             {
                 isSubmitting = true;
 
-                // Get the updated content from the editor
                 var editorContent = await JSRuntime.InvokeAsync<string>(
                     "eval", "document.querySelector('[contenteditable]').innerHTML");
-                post.Content = editorContent ?? post.Content; // Fallback to existing content if empty
+                post.Content = editorContent ?? post.Content;
 
                 List<string> tags = new List<string>();
                 if (!string.IsNullOrWhiteSpace(tagsInput))
@@ -319,7 +316,7 @@
             }
             catch (Exception ex)
             {
-                Snackbar.Add($"Error updating post: {ex.Message}", Severity.Error);
+                Console.WriteLine($"Error updating post: {ex.Message}");
             }
             finally
             {
@@ -351,6 +348,6 @@
     }
 
         .editor-content:focus {
-            border-color: #1976d2; /* Matches MudBlazor Primary color */
+            border-color: #1976d2;
         }
 </style>

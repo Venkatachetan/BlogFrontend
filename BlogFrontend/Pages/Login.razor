@@ -5,24 +5,14 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
-<div class="d-flex justify-center align-center" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: #e91e63; width: 100vw; height: 100vh;">
-    <div class="text-center" style="max-width: 500px; width: 100%; padding: 40px 20px;">
+<div class="d-flex justify-center align-center" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(135deg, #6559ae, #e91e63); width: 100vw; height: 100vh;">
+    <div class="text-center" style="max-width: 400px; width: 100%; padding: 40px 20px; background-color: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
         <div class="mb-6">
-            <MudIcon Icon="@Icons.Material.Filled.Article" Style="color: white; font-size: 40px;" Class="mb-2" />
-            <MudText Typo="Typo.h5" Class="font-weight-bold" Style="color: white;">Blog Application</MudText>
+            <MudIcon Icon="@Icons.Material.Filled.Article" Style="color: #e91e63; font-size: 40px;" Class="mb-2" />
+            <MudText Typo="Typo.h5" Class="font-weight-bold" Style="color: #333;">Blog Application</MudText>
         </div>
 
-        <MudText Typo="Typo.h5" Class="mb-3" Style="color: white;">Login</MudText>
-
-        <div class="d-flex justify-center mb-2">
-            <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.8);">Are you a new user?</MudText>
-            <MudButton Variant="Variant.Text"
-                       Color="Color.Default"
-                       OnClick="@(() => Navigation.NavigateTo("/register"))"
-                       Style="color: #3f51b5; padding: 0px 6px; min-width: 0; font-weight: 500;">
-                Register
-            </MudButton>
-        </div>
+        <MudText Typo="Typo.h5" Class="mb-4" Style="color: #333;">Login</MudText>
 
         <MudForm Class="mt-4">
             @if (!string.IsNullOrEmpty(errorMessage))
@@ -39,48 +29,66 @@
                 </MudAlert>
             }
 
-            <MudTextField @bind-Value="email"
-                          Label="Username"
-                          Variant="Variant.Outlined"
-                          FullWidth="true"
-                          Class="mb-3 bg-white rounded-lg" />
+            <div class="px-4">
+                <div class="mb-4">
+                    <MudText Typo="Typo.caption" Class="d-block text-left mb-1" Style="color: #666;">Email</MudText>
+                    <MudTextField @bind-Value="email"
+                                  Placeholder="Email"
+                                  Variant="Variant.Outlined"
+                                  Label=""
+                                  FullWidth="true" />
+                </div>
 
-            <MudTextField @bind-Value="password"
-                          Label="Password"
-                          Variant="Variant.Outlined"
-                          InputType="InputType.Password"
-                          FullWidth="true"
-                          Class="mb-2 bg-white rounded-lg" />
+                <div class="mb-4">
+                    <MudText Typo="Typo.caption" Class="d-block text-left mb-1" Style="color: #666;">Password</MudText>
+                    <MudTextField @bind-Value="password"
+                                  Placeholder="Password"
+                                  Variant="Variant.Outlined"
+                                  Label=""
+                                  InputType="InputType.Password"
+                                  FullWidth="true" />
+                </div>
 
-            <div class="d-flex justify-space-between align-center mb-4">
-                <MudCheckBox T="bool" Label="Remember me" Color="Color.Default" Style="color: white;" LabelPosition="LabelPosition.End" />
-                <MudButton Variant="Variant.Text"
-                           Color="Color.Default"
-                           OnClick="@(() => Navigation.NavigateTo("/forgot-password"))"
-                           Size="Size.Small"
-                           Style="color: #3f51b5; font-weight: 500;">
-                    Forgot password?
-                </MudButton>
-            </div>
+                <div class="d-flex justify-end mb-4">
+                    <MudButton Variant="Variant.Text"
+                               Color="Color.Primary"
+                               OnClick="@(() => Navigation.NavigateTo("/forgot-password"))"
+                               Size="Size.Small"
+                               Style="font-weight: 500;">
+                        Forgot password?
+                    </MudButton>
+                </div>
 
-            <div class="d-flex justify-center mt-4">
-                <MudButton Variant="Variant.Filled"
-                           Style="background-color: #3f51b5; color: white; border-radius: 4px; width: 150px;"
-                           OnClick="Submit"
-                           Size="Size.Large"
-                           Disabled="isLoading">
-                    @if (isLoading)
-                    {
-                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-                        <span>Signing in...</span>
-                    }
-                    else
-                    {
-                        <span>Login</span>
-                    }
-                </MudButton>
+                <div class="d-flex justify-center mt-4">
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               Style="border-radius: 4px; width: 100%;"
+                               OnClick="Submit"
+                               Size="Size.Large"
+                               Disabled="isLoading">
+                        @if (isLoading)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                            <span>Signing in...</span>
+                        }
+                        else
+                        {
+                            <span>Log In</span>
+                        }
+                    </MudButton>
+                </div>
             </div>
         </MudForm>
+
+        <div class="d-flex justify-center mt-6 pt-4" style="border-top: 1px solid #eee;">
+            <MudText Typo="Typo.body2" Style="color: #666;">Don't have an account?</MudText>
+            <MudButton Variant="Variant.Text"
+                       Color="Color.Primary"
+                       OnClick="@(() => Navigation.NavigateTo("/register"))"
+                       Style="padding: 0px 6px; min-width: 0; font-weight: 500;">
+                Sign up
+            </MudButton>
+        </div>
     </div>
 </div>
 

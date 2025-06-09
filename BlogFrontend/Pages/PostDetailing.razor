@@ -41,14 +41,14 @@
     }
     else
     {
-        <!-- Main post details -->
         <MudPaper Elevation="3" Class="post-paper pa-8 mb-10 rounded-xl">
-            <!-- Author info and post actions row -->
             <div class="d-flex justify-space-between align-center mb-6">
                 <div class="d-flex align-center">
                     <MudAvatar Color="Color.Primary" Size="Size.Large" Class="mr-4">@GetInitial(currentPost.UserName)</MudAvatar>
                     <div>
-                        <MudText Typo="Typo.h6" Class="font-weight-bold">@currentPost.UserName</MudText>
+                        <div @onclick="@(() => NavigationManager.NavigateTo($"/user/{currentPost.UserId}"))" style="cursor: pointer;">
+                            <MudText Typo="Typo.h6" Class="font-weight-bold">@currentPost.UserName</MudText>
+                        </div>
                         <MudText Typo="Typo.body2" Class="d-flex align-center mt-1">
                             <MudIcon Icon="@Icons.Material.Filled.CalendarToday" Size="Size.Small" Class="mr-2" />
                             @currentPost.CreatedAt.ToString("MMMM dd, yyyy")
@@ -75,10 +75,8 @@
                 }
             </div>
 
-            <!-- Post title -->
             <MudText Typo="Typo.h2" Class="mb-6 post-title-text">@currentPost.Title</MudText>
 
-            <!-- Post feature image (if available) -->
             @if (currentPost.ImageBytes != null && currentPost.ImageBytes.Length > 0)
             {
                 <div class="post-feature-image mb-8">
@@ -87,14 +85,12 @@
                 </div>
             }
 
-            <!-- Post content -->
             <div class="post-content-wrapper mt-6">
                 <MudText Typo="Typo.body1" Class="post-content">
                     @((MarkupString)FormatContent(currentPost.Content))
                 </MudText>
             </div>
 
-            <!-- Tags section -->
             @if (currentPost.Tags != null && currentPost.Tags.Any())
             {
                 <div class="d-flex flex-wrap gap-2 mt-8">
@@ -107,58 +103,29 @@
 
             <MudDivider Class="my-8" />
 
-            <!-- Post actions section -->
             <div class="d-flex flex-wrap align-center post-actions gap-6">
-                <div>
-                    @if (currentPost.LikedBy.Any(l => l.UserId == userId))
+                <div class="d-flex align-center">
+                    @if (currentPost.LikedBy != null && currentPost.LikedBy.Any(l => l.UserId == userId))
                     {
-                        <MudButton StartIcon="@Icons.Material.Filled.Favorite"
-                                   Color="Color.Error"
-                                   Variant="Variant.Filled"
-                                   Size="Size.Large"
-                                   Class="px-4"
-                                   OnClick="@(() => UnlikePost(currentPost.Id))">
-                            @currentPost.Likes Like@(currentPost.Likes != 1 ? "s" : "")
-                        </MudButton>
+                        <div class="like-button" @onclick="UnlikePost">
+                            <MudIcon Icon="@Icons.Material.Filled.Favorite" Color="Color.Error" Size="Size.Medium" Class="mr-2" />
+                            <MudText Typo="Typo.body1" Class="gold-text">@currentPost.Likes Like@(currentPost.Likes != 1 ? "s" : "")</MudText>
+                        </div>
                     }
                     else
                     {
-                        <MudButton StartIcon="@Icons.Material.Outlined.FavoriteBorder"
-                                   Color="Color.Primary"
-                                   Variant="Variant.Outlined"
-                                   Size="Size.Large"
-                                   Class="px-4"
-                                   OnClick="@(() => LikePost(currentPost.Id))">
-                            @currentPost.Likes Like@(currentPost.Likes != 1 ? "s" : "")
-                        </MudButton>
+                        <div class="like-button" @onclick="LikePost">
+                            <MudIcon Icon="@Icons.Material.Outlined.FavoriteBorder" Size="Size.Medium" Class="mr-2" />
+                            <MudText Typo="Typo.body1" Class="gold-text">@currentPost.Likes Like@(currentPost.Likes != 1 ? "s" : "")</MudText>
+                        </div>
                     }
                 </div>
-
                 <div class="d-flex align-center">
                     <MudIcon Icon="@Icons.Material.Outlined.Comment" Size="Size.Medium" Class="mr-2" />
                     <MudText Typo="Typo.body1">@currentPost.Comments.Count Comment@(currentPost.Comments.Count != 1 ? "s" : "")</MudText>
                 </div>
-
-                @* <!-- Add Play and Pause Buttons --> *@
-                @* <MudButton StartIcon="@Icons.Material.Filled.PlayArrow" *@
-                @*            Color="Color.Primary" *@
-                @*            Variant="Variant.Outlined" *@
-                @*            Size="Size.Large" *@
-                @*            Class="px-4" *@
-                @*            OnClick="@PlayAudio"> *@
-                @*     Play *@
-                @* </MudButton> *@
-                @* <MudButton StartIcon="@Icons.Material.Filled.Pause" *@
-                @*            Color="Color.Secondary" *@
-                @*            Variant="Variant.Outlined" *@
-                @*            Size="Size.Large" *@
-                @*            Class="px-4" *@
-                @*            OnClick="@PauseAudio"> *@
-                @*     Pause *@
-                @* </MudButton> *@
             </div>
 
-            <!-- Liked by section - enhanced with better spacing and visuals -->
             @if (currentPost.LikedBy.Any())
             {
                 <MudPaper Elevation="0" Class="mt-6 pa-4 liked-by-section rounded-lg">
@@ -178,10 +145,8 @@
             }
         </MudPaper>
 
-        <!-- Comments section with enhanced styling -->
         <MudText Typo="Typo.h4" Class="mb-6 comment-section-title">Comments (@currentPost.Comments.Count)</MudText>
 
-        <!-- Comment form -->
         <MudPaper Elevation="3" Class="pa-6 mb-8 rounded-xl comment-form">
             <MudText Typo="Typo.h6" Class="mb-3">Leave a comment</MudText>
             <MudTextField @bind-Value="currentPost.NewComment"
@@ -202,7 +167,6 @@
             </div>
         </MudPaper>
 
-        <!-- Comments list -->
         @if (currentPost.Comments.Any())
         {
             <MudPaper Elevation="3" Class="pa-0 mb-10 rounded-xl overflow-hidden comments-container">
@@ -315,23 +279,19 @@
         padding: 8px 0;
     }
 
-    .liked-by-section {
-        background-color: var(--mud-palette-background-grey);
-        border-radius: 12px;
+    .like-button {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
     }
 
-    .liked-by-user {
-        background-color: var(--mud-palette-surface);
-        border-radius: 24px;
-        padding: 4px 12px 4px 4px;
-        transition: all 0.3s;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-
-        .liked-by-user:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        .like-button:hover {
+            opacity: 0.8;
         }
+
+    .gold-text {
+        color: #D4AF37 !important;
+    }
 
     .comment-section-title {
         position: relative;
@@ -384,49 +344,12 @@
         background-color: var(--mud-palette-background-grey);
     }
 
-    .post-share-buttons {
-        display: flex;
-        gap: 8px;
-    }
-
-    /* Custom styles for centered popover */
     .centered-popover {
         position: fixed !important;
         top: 50% !important;
         left: 50% !important;
         transform: translate(-50%, -50%) !important;
         z-index: 1000;
-    }
-
-    @@media (max-width: 599px) {
-        .post-container {
-            padding-left: 16px;
-            padding-right: 16px;
-        }
-
-        .post-paper {
-            padding: 16px !important;
-        }
-
-        .post-title-text {
-            font-size: 1.8rem !important;
-        }
-
-        .post-content {
-            font-size: 1rem;
-        }
-
-        .liked-by-user {
-            padding: 2px 8px 2px 2px;
-        }
-
-        .comment {
-            padding: 16px !important;
-        }
-
-        .comment-text {
-            padding-left: 0;
-        }
     }
 </style>
 
@@ -441,11 +364,6 @@
     private bool deletePostPopoverOpen = false;
     private bool deleteCommentPopoverOpen = false;
     private string currentCommentIdToDelete = null;
-
-    // Add variables for audio control
-    // private byte[] _audioBytes;
-    // private double _currentAudioPosition = 0;
-    // private bool _isAudioLoaded = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -481,6 +399,42 @@
         }
     }
 
+    private async Task LikePost()
+    {
+        try
+        {
+            var updatedPost = await BlogService.LikePostAsync(PostId);
+            if (updatedPost != null)
+            {
+                currentPost.Likes = updatedPost.Likes;
+                currentPost.LikedBy = updatedPost.LikedBy;
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error liking post: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task UnlikePost()
+    {
+        try
+        {
+            var updatedPost = await BlogService.UnlikePostAsync(PostId);
+            if (updatedPost != null)
+            {
+                currentPost.Likes = updatedPost.Likes;
+                currentPost.LikedBy = currentPost.LikedBy.Where(l => l.UserId != userId).ToList();
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error unliking post: {ex.Message}", Severity.Error);
+        }
+    }
+
     private void NavigateToPostDetails(string postId)
     {
         NavigationManager.NavigateTo($"/post/{postId}");
@@ -491,44 +445,6 @@
         if (string.IsNullOrEmpty(name))
             return "?";
         return name.Substring(0, 1).ToUpper();
-    }
-
-    private async Task LikePost(string postId)
-    {
-        try
-        {
-            var updatedPost = await BlogService.LikePostAsync(postId);
-            if (updatedPost != null)
-            {
-                currentPost.Likes = updatedPost.Likes;
-                currentPost.LikedBy = updatedPost.Likes > 0 ? updatedPost.LikedBy : new List<Like>(); // Updated to use Like
-                Snackbar.Add("Post liked successfully!", Severity.Success);
-            }
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Error liking post: {ex.Message}", Severity.Error);
-            Console.WriteLine($"Error liking post: {ex.Message}");
-        }
-    }
-
-    private async Task UnlikePost(string postId)
-    {
-        try
-        {
-            var updatedPost = await BlogService.UnlikePostAsync(postId);
-            if (updatedPost != null)
-            {
-                currentPost.Likes = updatedPost.Likes;
-                currentPost.LikedBy = updatedPost.LikedBy.Where(l => l.UserId != userId).ToList();
-                Snackbar.Add("Post unliked successfully!", Severity.Success);
-            }
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Error unliking post: {ex.Message}", Severity.Error);
-            Console.WriteLine($"Error unliking post: {ex.Message}");
-        }
     }
 
     private async Task AddComment(string postId)
@@ -643,42 +559,6 @@
         }
         return content;
     }
-
-    // private async Task PlayAudio()
-    // {
-    //     try
-    //     {
-    //         if (!_isAudioLoaded)
-    //         {
-    //             _audioBytes = await TextReaderService.GetPostAudioAsync(PostId);
-    //             _isAudioLoaded = true;
-    //         }
-    //         await TextReaderService.PlayAudio(_audioBytes, _currentAudioPosition);
-    //         Snackbar.Add("Playing post content", Severity.Info);
-    //     }
-    //     catch (Exception ex)
-    //     {
-    //         Snackbar.Add($"Error playing audio: {ex.Message}", Severity.Error);
-    //         Console.WriteLine($"Error playing audio: {ex.Message}");
-    //     }
-    // }
-
-    // private async Task PauseAudio()
-    // {
-    //     try
-    //     {
-    //         if (_isAudioLoaded)
-    //         {
-    //             _currentAudioPosition = await TextReaderService.PauseAudio();
-    //             Snackbar.Add("Audio paused", Severity.Info);
-    //         }
-    //     }
-    //     catch (Exception ex)
-    //     {
-    //         Snackbar.Add($"Error pausing audio: {ex.Message}", Severity.Error);
-    //         Console.WriteLine($"Error pausing audio: {ex.Message}");
-    //     }
-    // }
 
     private RenderFragment DeletePostPopover => @<MudPopover Open="@deletePostPopoverOpen"
                                                                  AnchorOrigin="Origin.TopCenter"

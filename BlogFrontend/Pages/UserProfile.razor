@@ -1,0 +1,312 @@
+﻿@page "/user/{userId}"
+@using MudBlazor
+@using BlogFrontend.Models
+@using BlogFrontend.Services
+@inject IBlogService BlogService
+@inject IAuthService AuthService
+@inject NavigationManager NavigationManager
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <div class="d-flex align-center mb-4">
+        <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Color="Color.Default" OnClick="NavigateToFeed" Class="back-button" />
+        <MudText Typo="Typo.h6" Class="ml-2">Back to Feed</MudText>
+        <MudSpacer />
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="d-flex justify-center my-8">
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+        </div>
+    }
+    else if (profileUser == null)
+    {
+        <MudPaper Elevation="0" Class="py-8 text-center">
+            <MudIcon Icon="@Icons.Material.Outlined.ErrorOutline" Color="Color.Error" Size="Size.Large" Class="mb-4" />
+            <MudText Typo="Typo.h5" Class="mb-3">User not found</MudText>
+            <MudText Typo="Typo.body1" Class="mb-6 text-center">This user may have been deleted or doesn't exist.</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" OnClick="NavigateToFeed">
+                Back to Feed
+            </MudButton>
+        </MudPaper>
+    }
+    else
+    {
+        <MudPaper Class="profile-header pa-4 mb-4" Elevation="1">
+            <MudGrid>
+                <MudItem xs="12" md="3" Class="d-flex justify-center align-center">
+                    @if (string.IsNullOrEmpty(profileUser.ProfilePicture))
+                    {
+                        <MudAvatar Size="Size.Large" Style="width: 120px; height: 120px; font-size: 48px;">@GetFirstLetter(profileUser.Username)</MudAvatar>
+                    }
+                    else
+                    {
+                        <div class="profile-picture-container">
+                            <img src="@($"data:image/jpeg;base64,{profileUser.ProfilePicture}")" alt="Profile Picture" class="profile-picture-large rounded" />
+                        </div>
+                    }
+                </MudItem>
+                <MudItem xs="12" md="9">
+                    <div class="d-flex align-center justify-space-between mb-2">
+                        <MudText Typo="Typo.h5" Style="font-weight: 600;">@profileUser.Username</MudText>
+                        @if (currentUserId != userId)
+                        {
+                            <MudButton Variant="Variant.Filled"
+                                       Class="px-4"
+                                       Size="Size.Small"
+                                       Color="@(isFollowing ? Color.Default : Color.Primary)"
+                                       OnClick="ToggleFollow">
+                                @(isFollowing ? "UNFOLLOW" : "FOLLOW")
+                            </MudButton>
+                        }
+                    </div>
+
+                    <div class="d-flex gap-6 mb-3">
+                        <div class="text-center">
+                            <MudText Typo="Typo.h6" Style="font-weight: 600;">@userPosts.Count</MudText>
+                            <MudText Typo="Typo.caption" Style="color: #777777;">Posts</MudText>
+                        </div>
+                        <div class="text-center">
+                            <MudText Typo="Typo.h6" Style="font-weight: 600;">@followers.Count</MudText>
+                            <MudText Typo="Typo.caption" Style="color: #777777;">Followers</MudText>
+                        </div>
+                        <div class="text-center">
+                            <MudText Typo="Typo.h6" Style="font-weight: 600;">@following.Count</MudText>
+                            <MudText Typo="Typo.caption" Style="color: #777777;">Following</MudText>
+                        </div>
+                    </div>
+
+                    <div class="bio-section mt-2">
+                        <MudText Typo="Typo.body2" Class="bio-text">@profileUser.Bio</MudText>
+                    </div>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <MudTabs Class="tabs mt-4" Centered="true" Rounded="true" ApplyEffectsToContainer="true">
+            <MudTabPanel Icon="@Icons.Material.Filled.GridOn" Text="POSTS">
+                @if (userPosts.Any())
+                {
+                    <MudGrid Spacing="4">
+                        @foreach (var post in userPosts)
+                        {
+                            <MudItem xs="12" sm="6" md="4" Style="cursor: pointer;" @onclick="@(() => NavigateToPost(post.Id))">
+                                <MudCard Elevation="2" Class="rounded-lg overflow-hidden h-100">
+                                    @if (!string.IsNullOrEmpty(post.ImageBase64))
+                                    {
+                                        <MudCardMedia Image="@($"data:image/jpeg;base64,{post.ImageBase64}")" Height="250" />
+                                    }
+                                    else
+                                    {
+                                        <MudCardMedia Style="height: 250px; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center;">
+                                            <MudIcon Icon="@Icons.Material.Filled.Image" Size="Size.Large" Color="Color.Default" />
+                                        </MudCardMedia>
+                                    }
+                                    <MudCardContent>
+                                        <div class="d-flex align-center mb-2">
+                                            <MudAvatar Size="Size.Small" Style="background-color: #000000; color: #D4AF37; border: 1px solid #D4AF37;">
+                                                @(post.UserName?.Length > 0 ? post.UserName[0].ToString().ToUpper() : "U")
+                                            </MudAvatar>
+                                            <div @onclick:stopPropagation="true">
+                                                <MudText Typo="Typo.body1" Class="ml-2 font-weight-bold" Style="cursor: pointer;"
+                                                         @onclick="@(() => NavigateToUserProfile(post.UserId))">
+                                                    @(post.UserName ?? "Unknown")
+                                                </MudText>
+                                            </div>
+                                        </div>
+                                        <MudText Typo="Typo.h6" Class="text-truncate">@(post.Title ?? "Untitled")</MudText>
+                                        <MudText Typo="Typo.body2" Class="text-truncate">
+                                            @(post.Content != null && post.Content.Length > 0 ? post.Content.Substring(0, Math.Min(post.Content.Length, 100)) + "..." : "No content")
+                                        </MudText>
+                                        @if (post.Tags != null && post.Tags.Any())
+                                        {
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Class="mt-2">@post.Tags.First()</MudChip>
+                                        }
+                                    </MudCardContent>
+                                    <MudCardActions>
+                                        <MudIcon Icon="@Icons.Material.Filled.Favorite" Size="Size.Small" Color="Color.Error" />
+                                        <MudText Typo="Typo.body2" Class="ml-1 mr-4">@post.Likes</MudText>
+                                        <MudIcon Icon="@Icons.Material.Filled.Comment" Size="Size.Small" Color="Color.Default" />
+                                        <MudText Typo="Typo.body2" Class="ml-1">@(post.Comments?.Count ?? 0)</MudText>
+                                        < Jaguars Spacer />
+                                        <MudText Typo="Typo.caption" Class="text-disabled">
+                                            @FormatDate(post.CreatedAt)
+                                        </MudText>
+                                    </MudCardActions>
+                                </MudCard>
+                            </MudItem>
+                        }
+                    </MudGrid>
+                }
+                else
+                {
+                    <MudPaper Elevation="0" Class="py-8 text-center">
+                        <MudIcon Icon="@Icons.Material.Filled.CameraAlt" Size="Size.Large" Class="mb-4" />
+                        <MudText Typo="Typo.h6">No posts yet</MudText>
+                        <MudText Typo="Typo.body2" Class="mt-2">This user hasn't posted anything.</MudText>
+                    </MudPaper>
+                }
+            </MudTabPanel>
+        </MudTabs>
+    }
+</MudContainer>
+
+<style>
+    .profile-picture-container {
+        width: 120px;
+        height: 120px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .profile-picture-large {
+        width: 120px;
+        height: 120px;
+        object-fit: cover;
+        border-radius: 50%;
+    }
+
+    .bio-text {
+        white-space: pre-line;
+    }
+
+    .profile-header {
+        border-radius: 8px;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public string userId { get; set; }
+
+    private bool isLoading = true;
+    private string currentUserId = "";
+    private BlogFrontend.Models.User profileUser;
+    private List<BlogFrontend.Models.Post> userPosts = new List<BlogFrontend.Models.Post>();
+    private List<BlogFrontend.Models.User> followers = new List<BlogFrontend.Models.User>();
+    private List<BlogFrontend.Models.User> following = new List<BlogFrontend.Models.User>();
+    private List<string> followingIds = new List<string>();
+    private bool isFollowing = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            currentUserId = await AuthService.GetUserIdAsync();
+
+            if (currentUserId == userId)
+            {
+                NavigationManager.NavigateTo("/profile");
+                return;
+            }
+
+            followingIds = await BlogService.GetFollowingIdsAsync();
+
+            var userProfile = await BlogService.GetUserProfileAsync(userId);
+            if (userProfile != null)
+            {
+                profileUser = new BlogFrontend.Models.User
+                    {
+                        UserId = userProfile.UserId,
+                        Username = userProfile.Username,
+                        Bio = userProfile.Bio,
+                        ProfilePicture = userProfile.ProfilePicture
+                    };
+                isFollowing = followingIds.Contains(userId);
+            }
+            else
+            {
+                profileUser = null;
+                Snackbar.Add("User not found.", Severity.Error);
+                return;
+            }
+
+            userPosts = await BlogService.GetUserPostsAsync(userId) ?? new List<BlogFrontend.Models.Post>();
+            followers = await BlogService.GetFollowersAsync(userId) ?? new List<BlogFrontend.Models.User>();
+            following = await BlogService.GetFollowingAsync(userId) ?? new List<BlogFrontend.Models.User>();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading profile: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ToggleFollow()
+    {
+        try
+        {
+            if (isFollowing)
+            {
+                await BlogService.UnfollowUserAsync(userId);
+                followingIds.Remove(userId);
+                followers.RemoveAll(u => u.UserId == currentUserId);
+                isFollowing = false;
+                Snackbar.Add($"Unfollowed {profileUser.Username}.", Severity.Success);
+            }
+            else
+            {
+                await BlogService.FollowUserAsync(userId);
+                followingIds.Add(userId);
+                var currentUserProfile = await BlogService.GetUserProfileAsync(currentUserId);
+                if (currentUserProfile != null)
+                {
+                    followers.Add(new BlogFrontend.Models.User
+                        {
+                            UserId = currentUserProfile.UserId,
+                            Username = currentUserProfile.Username,
+                            ProfilePicture = currentUserProfile.ProfilePicture,
+                            Bio = currentUserProfile.Bio
+                        });
+                }
+                isFollowing = true;
+                Snackbar.Add($"Followed {profileUser.Username}.", Severity.Success);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to {(isFollowing ? "unfollow" : "follow")} user: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void NavigateToPost(string postId)
+    {
+        NavigationManager.NavigateTo($"/post/{postId}");
+    }
+
+    private void NavigateToUserProfile(string userId)
+    {
+        NavigationManager.NavigateTo($"/user/{userId}");
+    }
+
+    private void NavigateToFeed()
+    {
+        NavigationManager.NavigateTo("/feed");
+    }
+
+    private string GetFirstLetter(string name)
+    {
+        return !string.IsNullOrEmpty(name) ? name[0].ToString().ToUpper() : "?";
+    }
+
+    private string FormatDate(DateTime date)
+    {
+        TimeSpan timeSince = DateTime.Now - date;
+
+        if (timeSince.TotalDays > 30)
+            return date.ToString("MMM d, yyyy");
+        if (timeSince.TotalDays > 1)
+            return $"{(int)timeSince.TotalDays}d ago";
+        if (timeSince.TotalHours > 1)
+            return $"{(int)timeSince.TotalHours}h ago";
+        if (timeSince.TotalMinutes > 1)
+            return $"{(int)timeSince.TotalMinutes}m ago";
+
+        return "Just now";
+    }
+}

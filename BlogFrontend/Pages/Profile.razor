@@ -1,0 +1,824 @@
+﻿@page "/profile"
+@using MudBlazor
+@using BlogFrontend.Services
+@using BlogFrontend.Models
+@using Blazored.LocalStorage
+@using BlogFrontend
+@inject IAuthService AuthService
+@inject IBlogService BlogService
+@inject NavigationManager Navigation
+@inject ILocalStorageService LocalStorage
+@inject ISnackbar Snackbar
+
+<style>
+    .profile-header {
+        background-color: #FFFFFF;
+        padding: 24px;
+        border-radius: 4px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        margin-bottom: 16px;
+    }
+
+    .avatar-large {
+        width: 120px;
+        height: 120px;
+        background-color: #111111 !important;
+        color: #D4AF37 !important;
+        border: 3px solid #D4AF37 !important;
+        font-size: 3rem;
+    }
+
+    .profile-picture {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 3px solid #D4AF37;
+    }
+
+    .profile-stats {
+        display: flex;
+        gap: 32px;
+        padding: 16px 0;
+        border-top: 1px solid #eaeaea;
+        margin-top: 16px;
+    }
+
+    .popover-content {
+        max-height: 300px;
+        overflow-y: auto;
+        padding: 16px;
+        background-color: #FFFFFF;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        width: 200px;
+    }
+
+    .popover-username {
+        padding: 8px 0;
+        border-bottom: 1px solid #eaeaea;
+        color: #555555;
+        transition: color 0.2s;
+    }
+
+        .popover-username:hover {
+            color: #D4AF37;
+        }
+
+        .popover-username:last-child {
+            border-bottom: none;
+        }
+
+    .popover-close-button {
+        background-color: #000000 !important;
+        color: #D4AF37 !important;
+        border: 1px solid #D4AF37 !important;
+    }
+
+        .popover-close-button:hover {
+            background-color: #D4AF37 !important;
+            color: #000000 !important;
+        }
+
+    .stat-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        cursor: pointer;
+        position: relative;
+    }
+
+    .post-list {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        margin-top: 16px;
+    }
+
+    .post-item {
+        display: flex;
+        background-color: #FFFFFF;
+        border-radius: 4px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+        height: 180px;
+    }
+
+        .post-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+    .post-content {
+        flex: 1;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .post-image {
+        width: 280px;
+        height: 100%;
+        object-fit: cover;
+        background-color: #f0f0f0;
+    }
+
+    .post-title {
+        font-weight: bold;
+        font-size: 1.2rem;
+        margin-bottom: 8px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+    }
+
+    .post-excerpt {
+        color: #555;
+        margin-bottom: 12px;
+        flex-grow: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+    }
+
+    .post-meta {
+        display: flex;
+        justify-content: space-between;
+        color: #777;
+        font-size: 0.9rem;
+    }
+
+    .post-stats {
+        display: flex;
+        gap: 16px;
+    }
+
+    .stat-item-inline {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .like-button {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+    }
+
+        .like-button:hover {
+            opacity: 0.8;
+        }
+
+    .gold-text {
+        color: #D4AF37 !important;
+    }
+
+    .edit-button {
+        background-color: #000000 !important;
+        color: #D4AF37 !important;
+        border: 1px solid #D4AF37 !important;
+    }
+
+        .edit-button:hover {
+            background-color: #D4AF37 !important;
+            color: #000000 !important;
+        }
+
+    .logout-button {
+        background-color: transparent !important;
+        color: #777777 !important;
+        border: 1px solid #cccccc !important;
+    }
+
+        .logout-button:hover {
+            background-color: rgba(0, 0, 0, 0.05) !important;
+        }
+
+    .tabs :deep(.mud-tabs-toolbar) {
+        background-color: #FFFFFF;
+        border-radius: 4px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .tabs :deep(.mud-tab.mud-tab-active) {
+        color: #D4AF37;
+    }
+
+    .tabs :deep(.mud-tab) {
+        color: #555555;
+    }
+
+    .tabs :deep(.mud-tabs-toolbar-inner) {
+        justify-content: center;
+    }
+
+    .bio-section {
+        margin-top: 16px;
+    }
+
+    .bio-text {
+        color: #555555;
+        margin-bottom: 8px;
+    }
+
+    .website-link {
+        color: #D4AF37 !important;
+        text-decoration: none;
+    }
+
+        .website-link:hover {
+            text-decoration: underline;
+        }
+
+    .actions-container {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 16px;
+    }
+
+    /* Skeleton loading styles */
+    .skeleton-post {
+        display: flex;
+        background-color: #FFFFFF;
+        border-radius: 4px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        height: 180px;
+    }
+
+    .skeleton-content {
+        flex: 1;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .skeleton-image {
+        width: 280px;
+        height: 100%;
+        background-color: #e6e6e6;
+    }
+
+    .skeleton-title {
+        height: 24px;
+        width: 70%;
+        background-color: #e6e6e6;
+        margin-bottom: 12px;
+        border-radius: 4px;
+    }
+
+    .skeleton-text {
+        height: 16px;
+        background-color: #e6e6e6;
+        margin-bottom: 8px;
+        border-radius: 4px;
+    }
+
+    .skeleton-text-short {
+        width: 40%;
+    }
+
+    .skeleton-text-medium {
+        width: 60%;
+    }
+
+    .skeleton-text-long {
+        width: 90%;
+    }
+
+    .skeleton-meta {
+        display: flex;
+        justify-content: space-between;
+        margin-top: auto;
+    }
+
+    .skeleton-avatar {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background-color: #e6e6e6;
+        margin-right: 8px;
+    }
+
+    .skeleton-stats {
+        display: flex;
+        gap: 16px;
+    }
+
+    .skeleton-stat {
+        width: 60px;
+        height: 16px;
+        background-color: #e6e6e6;
+        border-radius: 4px;
+    }
+
+    .post-avatar {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        object-fit: cover;
+    }
+</style>
+
+@if (isLoading)
+{
+    <div class="d-flex justify-center align-center" style="height: 100vh; background-color: #FFFFFF;">
+        <MudProgressCircular Indeterminate="true" Size="Size.Large" Color="Color.Error" />
+    </div>
+}
+else
+{
+    <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+        <MudPaper Class="profile-header" Elevation="0">
+            <MudGrid>
+                <MudItem xs="12" sm="4" Class="d-flex justify-center align-center">
+                    @if (string.IsNullOrEmpty(profilePicture))
+                    {
+                        <MudAvatar Class="avatar-large">@GetFirstLetter(userName)</MudAvatar>
+                    }
+                    else
+                    {
+                        <img src="@($"data:image/jpeg;base64,{profilePicture}")" alt="Profile Picture" class="profile-picture" />
+                    }
+                </MudItem>
+                <MudItem xs="12" sm="8">
+                    <div class="d-flex align-center justify-space-between mb-2">
+                        <MudText Typo="Typo.h5" Style="font-weight: 600;">@userName</MudText>
+                        <MudButton Variant="Variant.Outlined"
+                                   Class="edit-button"
+                                   Size="Size.Small"
+                                   OnClick="NavigateToEditProfile">
+                            Edit Profile
+                        </MudButton>
+                    </div>
+
+                    <div class="bio-section">
+                        <MudText Typo="Typo.body2" Class="bio-text">@userBio</MudText>
+                    </div>
+
+                    <div class="profile-stats">
+                        <div class="stat-item">
+                            <MudText Typo="Typo.h6" Style="font-weight: 600;">@userPosts.Count</MudText>
+                            <MudText Typo="Typo.caption" Style="color: #777777;">Posts</MudText>
+                        </div>
+                        <div class="stat-item" @ref="followersRef" @onclick="ToggleFollowersPopover">
+                            <MudText Typo="Typo.h6" Style="font-weight: 600;">@followers</MudText>
+                            <MudText Typo="Typo.caption" Style="color: #777777;">Followers</MudText>
+                        </div>
+                        <div class="stat-item" @ref="followingRef" @onclick="ToggleFollowingPopover">
+                            <MudText Typo="Typo.h6" Style="font-weight: 600;">@following</MudText>
+                            <MudText Typo="Typo.caption" Style="color: #777777;">Following</MudText>
+                        </div>
+                    </div>
+
+                    <div class="actions-container">
+                        <MudButton Variant="Variant.Outlined"
+                                   Class="logout-button"
+                                   Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.Logout"
+                                   OnClick="HandleLogout">
+                            Logout
+                        </MudButton>
+                    </div>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <!-- Followers Popover -->
+        <MudPopover Open="@followersPopoverOpen"
+                    Fixed="true"
+                    Class="popover-content"
+                    AnchorOrigin="Origin.TopCenter"
+                    TransformOrigin="Origin.TopCenter"
+                    RelativeWidth="true"
+                    AnchorReference="PopoverAnchor.Parent">
+            <MudPaper Elevation="3" Class="pa-4 rounded-lg">
+                <MudText Typo="Typo.h6" Class="mb-4">Followers</MudText>
+                @if (followersList.Any())
+                {
+                    @foreach (var follower in followersList)
+                    {
+                        <MudText Typo="Typo.body2" Class="popover-username">@follower.Username</MudText>
+                    }
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Class="mb-4">No followers yet.</MudText>
+                }
+                <div class="d-flex justify-end">
+                    <MudButton Variant="Variant.Outlined"
+                               Class="popover-close-button"
+                               Size="Size.Small"
+                               OnClick="@(() => followersPopoverOpen = false)">
+                        Close
+                    </MudButton>
+                </div>
+            </MudPaper>
+        </MudPopover>
+
+        <!-- Following Popover -->
+        <MudPopover Open="@followingPopoverOpen"
+                    Fixed="true"
+                    Class="popover-content"
+                    AnchorOrigin="Origin.TopCenter"
+                    TransformOrigin="Origin.TopCenter"
+                    RelativeWidth="true"
+                    AnchorReference="PopoverAnchor.Parent">
+            <MudPaper Elevation="3" Class="pa-4 rounded-lg">
+                <MudText Typo="Typo.h6" Class="mb-4">Following</MudText>
+                @if (followingList.Any())
+                {
+                    @foreach (var following in followingList)
+                    {
+                        <MudText Typo="Typo.body2" Class="popover-username">@following.Username</MudText>
+                    }
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Class="mb-4">Not following anyone yet.</MudText>
+                }
+                <div class="d-flex justify-end">
+                    <MudButton Variant="Variant.Outlined"
+                               Class="popover-close-button"
+                               Size="Size.Small"
+                               OnClick="@(() => followingPopoverOpen = false)">
+                        Close
+                    </MudButton>
+                </div>
+            </MudPaper>
+        </MudPopover>
+
+        <MudTabs Class="tabs" Centered="true" Rounded="true" ApplyEffectsToContainer="true">
+            <MudTabPanel Icon="@Icons.Material.Filled.GridOn" Text="POSTS">
+                @if (loadingPosts)
+                {
+                    <div class="post-list">
+                        @for (int i = 0; i < 3; i++)
+                        {
+                            <div class="skeleton-post">
+                                <div class="skeleton-content">
+                                    <div class="skeleton-title"></div>
+                                    <div class="skeleton-text skeleton-text-long"></div>
+                                    <div class="skeleton-text skeleton-text-long"></div>
+                                    <div class="skeleton-text skeleton-text-medium"></div>
+                                    <div class="skeleton-meta">
+                                        <div class="d-flex align-center">
+                                            <div class="skeleton-avatar"></div>
+                                            <div class="skeleton-text skeleton-text-short"></div>
+                                        </div>
+                                        <div class="skeleton-stats">
+                                            <div class="skeleton-stat"></div>
+                                            <div class="skeleton-stat"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="skeleton-image"></div>
+                            </div>
+                        }
+                    </div>
+                }
+                else if (userPosts.Count > 0)
+                {
+                    <div class="post-list">
+                        @foreach (var post in userPosts)
+                        {
+                            <div class="post-item" @onclick="() => NavigateToPost(post.Id)">
+                                <div class="post-content">
+                                    <div class="post-title">
+                                        @(string.IsNullOrEmpty(post.Title) ? "Untitled Post" : post.Title)
+                                    </div>
+                                    <div class="post-excerpt">
+                                        @StripHtmlTags(post.Content)
+                                    </div>
+                                    <div class="post-meta">
+                                        <div class="d-flex align-center">
+                                            @if (string.IsNullOrEmpty(profilePicture))
+                                            {
+                                                <MudAvatar Size="Size.Small" Class="mr-2">@GetFirstLetter(userName)</MudAvatar>
+                                            }
+                                            else
+                                            {
+                                                <img src="@($"data:image/jpeg;base64,{profilePicture}")" alt="Profile" class="post-avatar mr-2" />
+                                            }
+                                            <span>@userName • @GetPostDate(post.CreatedAt)</span>
+                                        </div>
+                                        <div class="post-stats">
+                                            <div class="stat-item-inline">
+                                                @if (post.LikedBy != null && post.LikedBy.Any(l => l.UserId == userId))
+                                                {
+                                                    <div class="like-button" @onclick="() => UnlikePost(post.Id)" @onclick:stopPropagation>
+                                                        <MudIcon Icon="@Icons.Material.Filled.Favorite" Color="Color.Error" Size="Size.Small" />
+                                                        <span>@post.Likes</span>
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <div class="like-button" @onclick="() => LikePost(post.Id)" @onclick:stopPropagation>
+                                                        <MudIcon Icon="@Icons.Material.Outlined.FavoriteBorder" Size="Size.Small" />
+                                                        <span>@post.Likes</span>
+                                                    </div>
+                                                }
+                                            </div>
+                                            <div class="stat-item-inline">
+                                                <MudIcon Icon="@Icons.Material.Filled.Comment" Size="Size.Small" />
+                                                <span>@(post.Comments?.Count ?? 0)</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <img class="post-image"
+                                     src="@(string.IsNullOrEmpty(post.ImageBase64) ? "/api/placeholder/400/400" : $"data:image/jpeg;base64,{post.ImageBase64}")"
+                                     alt="Post image" />
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="d-flex flex-column justify-center align-center py-8">
+                        <MudIcon Icon="@Icons.Material.Filled.CameraAlt" Color="Color.Default" Size="Size.Large" Class="mb-4" />
+                        <MudText Typo="Typo.h6" Class="gold-text">No Posts Yet</MudText>
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   OnClick="NavigateToCreatePost"
+                                   Class="mt-4">
+                            Create Your First Post
+                        </MudButton>
+                    </div>
+                }
+            </MudTabPanel>
+        </MudTabs>
+    </MudContainer>
+}
+
+@code {
+    private bool isLoading = true;
+    private bool loadingPosts = true;
+    private string userName = string.Empty;
+    private string userId = string.Empty;
+    private string userEmail = string.Empty;
+    private string userBio = string.Empty;
+    private string profilePicture = string.Empty;
+    private int followers = 0;
+    private int following = 0;
+    private List<BlogFrontend.Models.Post> userPosts = new List<BlogFrontend.Models.Post>();
+    private bool followersPopoverOpen = false;
+    private bool followingPopoverOpen = false;
+    private List<BlogFrontend.Models.User> followersList = new List<BlogFrontend.Models.User>();
+    private List<BlogFrontend.Models.User> followingList = new List<BlogFrontend.Models.User>();
+    private ElementReference followersRef;
+    private ElementReference followingRef;
+
+    private async Task ToggleFollowersPopover()
+    {
+        if (!followersPopoverOpen)
+        {
+            try
+            {
+                followersList = await BlogService.GetFollowersAsync(userId);
+                followers = followersList?.Count ?? 0;
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error loading followers: {ex.Message}", Severity.Error);
+                followersList = new List<BlogFrontend.Models.User>();
+            }
+        }
+        followersPopoverOpen = !followersPopoverOpen;
+        followingPopoverOpen = false;
+        StateHasChanged();
+    }
+
+    private async Task ToggleFollowingPopover()
+    {
+        if (!followingPopoverOpen)
+        {
+            try
+            {
+                followingList = await BlogService.GetFollowingAsync(userId);
+                following = followingList?.Count ?? 0;
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error loading following: {ex.Message}", Severity.Error);
+                followingList = new List<BlogFrontend.Models.User>();
+            }
+        }
+        followingPopoverOpen = !followingPopoverOpen;
+        followersPopoverOpen = false;
+        StateHasChanged();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var token = await LocalStorage.GetItemAsStringAsync(AppConstants.AuthTokenKey);
+
+            if (!string.IsNullOrEmpty(token))
+            {
+                userId = await AuthService.GetUserIdAsync();
+                userName = await AuthService.GetUserNameAsync();
+
+                var profile = await BlogService.GetUserProfileAsync(userId);
+                if (profile != null)
+                {
+                    userName = profile.Username;
+                    userBio = profile.Bio;
+                    userEmail = profile.Email;
+                    profilePicture = profile.ProfilePicture;
+                }
+                else
+                {
+                    var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
+                    var jwtToken = handler.ReadJwtToken(token);
+                    userEmail = jwtToken.Claims.FirstOrDefault(c => c.Type == "email")?.Value ?? string.Empty;
+                }
+
+                followersList = await BlogService.GetFollowersAsync(userId);
+                followingList = await BlogService.GetFollowingAsync(userId);
+                followers = followersList?.Count ?? 0;
+                following = followingList?.Count ?? 0;
+
+                isLoading = false;
+                StateHasChanged();
+
+                await LoadUserPosts();
+            }
+            else
+            {
+                Navigation.NavigateTo(AppConstants.LoginRoute);
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading profile: {ex.Message}");
+            Snackbar.Add($"Error loading profile: {ex.Message}", Severity.Error);
+            Navigation.NavigateTo(AppConstants.LoginRoute);
+            return;
+        }
+    }
+
+    private async Task LoadUserPosts()
+    {
+        loadingPosts = true;
+        StateHasChanged();
+
+        try
+        {
+            await Task.Delay(1000);
+
+            userPosts = await BlogService.GetUserPostsAsync(userId);
+            if (userPosts != null)
+            {
+                foreach (var post in userPosts)
+                {
+                    if (post.LikedBy == null)
+                        post.LikedBy = new List<BlogFrontend.Models.Like>();
+
+                    if (post.Comments == null)
+                        post.Comments = new List<BlogFrontend.Models.Comment>();
+                }
+            }
+            else
+            {
+                userPosts = new List<BlogFrontend.Models.Post>();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading user posts: {ex.Message}");
+            Snackbar.Add($"Error loading posts: {ex.Message}", Severity.Error);
+            userPosts = new List<BlogFrontend.Models.Post>();
+        }
+        finally
+        {
+            loadingPosts = false;
+            StateHasChanged();
+        }
+    }
+
+    private string GetFirstLetter(string name)
+    {
+        return !string.IsNullOrEmpty(name) ? name[0].ToString().ToUpper() : "?";
+    }
+
+    private string GetPostDate(DateTime? date)
+    {
+        if (!date.HasValue)
+            return "Unknown date";
+
+        TimeSpan timeDiff = DateTime.Now - date.Value;
+
+        if (timeDiff.TotalDays > 365)
+            return $"{(int)(timeDiff.TotalDays / 365)}y ago";
+        else if (timeDiff.TotalDays > 30)
+            return $"{(int)(timeDiff.TotalDays / 30)}mo ago";
+        else if (timeDiff.TotalDays > 7)
+            return $"{(int)(timeDiff.TotalDays / 7)}w ago";
+        else if (timeDiff.TotalDays >= 1)
+            return $"{(int)timeDiff.TotalDays}d ago";
+        else if (timeDiff.TotalHours >= 1)
+            return $"{(int)timeDiff.TotalHours}h ago";
+        else if (timeDiff.TotalMinutes >= 1)
+            return $"{(int)timeDiff.TotalMinutes}m ago";
+        else
+            return "Just now";
+    }
+
+    private string StripHtmlTags(string content)
+    {
+        if (string.IsNullOrEmpty(content))
+            return "No content";
+
+        string cleanedContent = System.Text.RegularExpressions.Regex.Replace(content, "<[^>]+>", "");
+        cleanedContent = System.Text.RegularExpressions.Regex.Replace(cleanedContent, "[↑↓←→]", "");
+
+        if (cleanedContent.Length > 150)
+            return cleanedContent.Substring(0, 150) + "...";
+
+        return cleanedContent;
+    }
+
+    private async Task LikePost(string postId)
+    {
+        try
+        {
+            var updatedPost = await BlogService.LikePostAsync(postId);
+            if (updatedPost != null)
+            {
+                var post = userPosts.FirstOrDefault(p => p.Id == postId);
+                if (post != null)
+                {
+                    post.Likes = updatedPost.Likes;
+                    post.LikedBy = updatedPost.LikedBy;
+                    StateHasChanged();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error liking post: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task UnlikePost(string postId)
+    {
+        try
+        {
+            var updatedPost = await BlogService.UnlikePostAsync(postId);
+            if (updatedPost != null)
+            {
+                var post = userPosts.FirstOrDefault(p => p.Id == postId);
+                if (post != null)
+                {
+                    post.Likes = updatedPost.Likes;
+                    post.LikedBy = post.LikedBy.Where(l => l.UserId != userId).ToList();
+                    StateHasChanged();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error unliking post: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void NavigateToPost(string postId)
+    {
+        Navigation.NavigateTo($"/post/{postId}");
+    }
+
+    private void NavigateToCreatePost()
+    {
+        Navigation.NavigateTo("/create-post");
+    }
+
+    private void NavigateToEditProfile()
+    {
+        Navigation.NavigateTo("/edit-profile");
+    }
+
+    private async Task HandleLogout()
+    {
+        try
+        {
+            await AuthService.Logout();
+            await LocalStorage.RemoveItemAsync(AppConstants.AuthTokenKey);
+            Snackbar.Add("Logged out successfully", Severity.Success);
+            Navigation.NavigateTo(AppConstants.LoginRoute);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error during logout: {ex.Message}");
+            Snackbar.Add("Error logging out", Severity.Error);
+        }
+    }
+}

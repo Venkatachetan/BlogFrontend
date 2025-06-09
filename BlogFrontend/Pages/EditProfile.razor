@@ -1,0 +1,257 @@
+﻿@page "/edit-profile"
+@using BlogFrontend
+@using MudBlazor
+@using BlogFrontend.Services
+@using BlogFrontend.Models
+@using Blazored.LocalStorage
+@using Microsoft.AspNetCore.Components.Forms
+@inject IAuthService AuthService
+@inject IBlogService BlogService
+@inject NavigationManager Navigation
+@inject ILocalStorageService LocalStorage
+@inject ISnackbar Snackbar
+@inject IJSRuntime JSRuntime
+
+<style>
+    .edit-profile-container {
+        max-width: 768px;
+        margin: 0 auto;
+        padding: 24px;
+    }
+
+    .profile-header {
+        margin-bottom: 24px;
+        text-align: center;
+    }
+
+    .avatar-container {
+        position: relative;
+        width: 150px;
+        height: 150px;
+        margin: 0 auto 16px;
+    }
+
+    .profile-picture {
+        width: 150px;
+        height: 150px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 3px solid #D4AF37;
+    }
+
+    .avatar-large {
+        width: 150px;
+        height: 150px;
+        background-color: #111111 !important;
+        color: #D4AF37 !important;
+        border: 3px solid #D4AF37 !important;
+        font-size: 4rem;
+    }
+
+    .form-section {
+        background-color: #FFFFFF;
+        border-radius: 4px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        padding: 24px;
+        margin-bottom: 24px;
+    }
+
+    .section-title {
+        margin-bottom: 16px;
+        color: #333333;
+    }
+
+    .actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        margin-top: 24px;
+    }
+
+    .save-button {
+        background-color: #D4AF37 !important;
+        color: #000000 !important;
+    }
+
+    .cancel-button {
+        background-color: transparent !important;
+        color: #777777 !important;
+        border: 1px solid #cccccc !important;
+    }
+</style>
+
+<MudContainer Class="edit-profile-container">
+    <div class="profile-header">
+        <MudText Typo="Typo.h4">Edit Profile</MudText>
+    </div>
+
+    <div class="form-section">
+        <MudText Typo="Typo.h6" Class="section-title">Profile Picture</MudText>
+        <div class="avatar-container mb-3">
+            @if (string.IsNullOrEmpty(profilePicture))
+            {
+                <MudAvatar Class="avatar-large">@GetFirstLetter(model.UserName)</MudAvatar>
+            }
+            else
+            {
+                <img src="@($"data:image/jpeg;base64,{profilePicture}")" alt="Profile Picture" class="profile-picture" />
+            }
+        </div>
+
+        <InputFile id="profileFileInput" OnChange="HandleFileSelected" hidden />
+        <div class="d-flex align-center justify-center">
+            <MudButton HtmlTag="label"
+                       Color="Color.Primary"
+                       Variant="Variant.Filled"
+                       for="profileFileInput">
+                Change Profile Picture
+            </MudButton>
+            <MudText Class="ml-3">@(selectedFile?.Name ?? "")</MudText>
+        </div>
+    </div>
+
+    <div class="form-section">
+        <MudText Typo="Typo.h6" Class="section-title">Account Information</MudText>
+        <MudTextField Value="model.UserName"
+                      Label="Username"
+                      Variant="Variant.Outlined"
+                      FullWidth="true"
+                      Margin="Margin.Dense"
+                      Class="mb-3"
+                      Disabled="true" />
+
+        <MudTextField @bind-Value="model.Email"
+                      Label="Email"
+                      Variant="Variant.Outlined"
+                      FullWidth="true"
+                      Margin="Margin.Dense"
+                      Disabled="true"
+                      Class="mb-3" />
+    </div>
+
+    <div class="form-section">
+        <MudText Typo="Typo.h6" Class="section-title">Bio</MudText>
+        <MudTextField @bind-Value="model.Bio"
+                      Label="Bio"
+                      Variant="Variant.Outlined"
+                      FullWidth="true"
+                      Margin="Margin.Dense"
+                      Lines="4"
+                      Class="mb-3" />
+    </div>
+
+    <div class="actions">
+        <MudButton Class="cancel-button"
+                   OnClick="CancelEdit"
+                   Variant="Variant.Outlined">
+            Cancel
+        </MudButton>
+        <MudButton Class="save-button"
+                   OnClick="SaveChanges"
+                   Variant="Variant.Filled">
+            Save Changes
+        </MudButton>
+    </div>
+</MudContainer>
+
+@code {
+    private ProfileModel model = new ProfileModel();
+    private string profilePicture = string.Empty;
+    private IBrowserFile selectedFile;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var token = await LocalStorage.GetItemAsStringAsync(AppConstants.AuthTokenKey);
+            if (string.IsNullOrEmpty(token))
+            {
+                Navigation.NavigateTo(AppConstants.LoginRoute);
+                return;
+            }
+
+            var userId = await AuthService.GetUserIdAsync();
+            var profile = await BlogService.GetUserProfileAsync(userId);
+            if (profile != null)
+            {
+                model = new ProfileModel
+                    {
+                        UserName = profile.Username,
+                        Email = profile.Email,
+                        Bio = profile.Bio
+                    };
+            }
+            else
+            {
+                model.UserName = await AuthService.GetUserNameAsync();
+                model.Email = (await AuthService.CheckAuth(token))?.Email ?? string.Empty;
+                model.Bio = string.Empty;
+            }
+
+            var base64Image = await BlogService.GetProfilePictureAsync(userId);
+            profilePicture = base64Image;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading profile data: {ex.Message}");
+            Snackbar.Add("Error loading profile data", Severity.Error);
+        }
+    }
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            selectedFile = e.File;
+            if (selectedFile != null)
+            {
+                var buffer = new byte[selectedFile.Size];
+                await selectedFile.OpenReadStream(maxAllowedSize: 10485760).ReadAsync(buffer);
+                var imageType = selectedFile.ContentType;
+                profilePicture = Convert.ToBase64String(buffer);
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error processing file: {ex.Message}");
+            Snackbar.Add("Error processing profile picture", Severity.Error);
+        }
+    }
+
+    private string GetFirstLetter(string name)
+    {
+        return !string.IsNullOrEmpty(name) ? name[0].ToString().ToUpper() : "?";
+    }
+
+    private void CancelEdit()
+    {
+        Navigation.NavigateTo(AppConstants.ProfileRoute);
+    }
+
+    private async Task SaveChanges()
+    {
+        try
+        {
+            if (selectedFile != null)
+            {
+                await AuthService.UploadProfilePictureAsync(selectedFile);
+            }
+
+            var success = await BlogService.UpdateBioAsync(model.Bio);
+            if (success)
+            {
+                Snackbar.Add("Profile updated successfully", Severity.Success);
+                Navigation.NavigateTo(AppConstants.ProfileRoute);
+            }
+            else
+            {
+                Snackbar.Add("Failed to update profile", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving profile: {ex.Message}");
+            Snackbar.Add($"Error saving profile: {ex.Message}", Severity.Error);
+        }
+    }
+}
